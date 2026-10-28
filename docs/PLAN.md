@@ -203,6 +203,8 @@ Planner rules:
   same partition number. Partition 1 is reserved for a 16 MiB Open HR label
   partition that holds a JSON descriptor (pool id, drive id, layout version).
   This makes drives self-describing even if md and LVM metadata is damaged.
+- Drives whose usable sizes differ by less than 1 GiB share a tier, so nearly
+  equal drives from different vendors do not create tiny arrays (decision 0003).
 - md arrays use metadata 1.2, an internal write-intent bitmap (fast recovery
   after an unclean shutdown), and a 512 KiB chunk.
 - md arrays are named `ohr_<poolId>_t<tier>` and appear as `/dev/md/ohr_<poolId>_t<tier>`.
@@ -373,7 +375,7 @@ open-hr/
 | Task runner      | Turborepo                                                                 | runs package tasks in dependency order with caching                |
 | Validation       | zod                                                                       | one schema per API shape, shared between core, web, ui, cli        |
 | HTTP server      | Fastify                                                                   | fast, typed, first-class schema validation, SSE is easy            |
-| Process spawning | execa with argument arrays, never a shell string                          | removes injection risk entirely                                    |
+| Process spawning | Node's `execFile` with argument arrays, never a shell, fixed environment  | removes injection risk entirely; see decision 0003                 |
 | Database         | SQLite via better-sqlite3                                                 | zero ops, single file, transactional                               |
 | UI               | React, Vite, Tailwind, TanStack Query                                     | standard, fast to build, easy for contributors                     |
 | Testing          | Vitest, fast-check for property tests, Playwright for e2e                 |                                                                    |

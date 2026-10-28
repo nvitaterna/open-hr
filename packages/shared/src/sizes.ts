@@ -8,6 +8,7 @@
 const DECIMAL_STEP = 1000;
 const BINARY_STEP = 1024;
 const DISPLAY_DECIMALS = 2;
+const DISPLAY_SCALE = 100;
 const SIZE_PATTERN = /^(?<amount>\d+(?:\.\d+)?)\s*(?<unit>[A-Za-z]+)$/u;
 
 const KB = DECIMAL_STEP;
@@ -64,7 +65,10 @@ export function parseSize(text: string): number {
   return bytes;
 }
 
-/** Formats bytes with decimal units, matching how drives are labelled, for example "4.00 TB". */
+/**
+ * Formats bytes with decimal units, matching how drives are labelled, for
+ * example "4.00 TB". Rounds down, so a capacity is never overstated.
+ */
 export function formatSize(bytes: number): string {
   let value = bytes;
   let unitIndex = 0;
@@ -75,7 +79,8 @@ export function formatSize(bytes: number): string {
   if (unitIndex === 0) {
     return `${bytes} B`;
   }
-  return `${value.toFixed(DISPLAY_DECIMALS)} ${DISPLAY_UNITS[unitIndex] ?? 'B'}`;
+  const truncated = Math.floor(value * DISPLAY_SCALE) / DISPLAY_SCALE;
+  return `${truncated.toFixed(DISPLAY_DECIMALS)} ${DISPLAY_UNITS[unitIndex] ?? 'B'}`;
 }
 
 /** Rounds down to a multiple of `alignment`. */

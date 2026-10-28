@@ -196,6 +196,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@ohr/core':
+        specifier: workspace:*
+        version: link:../core
       '@ohr/shared':
         specifier: workspace:*
         version: link:../shared

@@ -1,42 +1,74 @@
 import { PROJECT_NAME, SHORT_NAME } from '@ohr/shared/constants';
 
+import { PLAN_USAGE, planCommand } from './commands/plan.ts';
+import { STATUS_USAGE, statusCommand } from './commands/status.ts';
+import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type Io, UsageError } from './io.ts';
+
 const USAGE = `${PROJECT_NAME}
 
-Usage: ${SHORT_NAME} <command>
+Usage: ${SHORT_NAME} <command> [options]
 
 Commands:
+  status     Show drives, RAID arrays, and volume groups
+  plan       Show how a new pool would be laid out
   version    Print the version
-  help       Show this message
+  help       Show this message, or help for a command: ${SHORT_NAME} help plan`;
 
-More commands arrive with milestone M1.`;
+const COMMANDS: ReadonlyMap<string, { usage: string; handler: typeof statusCommand }> = new Map([
+  ['status', { usage: STATUS_USAGE, handler: statusCommand }],
+  ['plan', { usage: PLAN_USAGE, handler: planCommand }],
+]);
 
-const EXIT_OK = 0;
-const EXIT_USAGE = 2;
+function isParseArgsError(error: unknown): error is TypeError {
+  return (
+    error instanceof TypeError &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    error.code.startsWith('ERR_PARSE_ARGS')
+  );
+}
+
+function help(topic: string | undefined, io: Io): number {
+  let usage = USAGE;
+  if (topic !== undefined) {
+    usage = COMMANDS.get(topic)?.usage ?? USAGE;
+  }
+  io.stdout(usage);
+  return EXIT_OK;
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
 
 export const VERSION = '0.0.0';
 
-export interface Output {
-  stdout: (line: string) => void;
-  stderr: (line: string) => void;
-}
-
 /** Runs the CLI and returns the process exit code. */
-export function run(args: readonly string[], out: Output): number {
-  const [command] = args;
-  switch (command) {
-    case undefined:
-    case 'help':
-    case '--help':
-    case '-h':
-      out.stdout(USAGE);
-      return EXIT_OK;
-    case 'version':
-    case '--version':
-    case '-v':
-      out.stdout(`${SHORT_NAME} ${VERSION}`);
-      return EXIT_OK;
-    default:
-      out.stderr(`Unknown command: ${command}\n\n${USAGE}`);
+export async function run(args: readonly string[], io: Io): Promise<number> {
+  const [name, ...rest] = args;
+  if (name === undefined || name === 'help' || name === '--help' || name === '-h') {
+    return help(rest[0], io);
+  }
+  if (name === 'version' || name === '--version' || name === '-v') {
+    io.stdout(`${SHORT_NAME} ${VERSION}`);
+    return EXIT_OK;
+  }
+  const command = COMMANDS.get(name);
+  if (command === undefined) {
+    io.stderr(`Unknown command: ${name}\n\n${USAGE}`);
+    return EXIT_USAGE;
+  }
+  try {
+    return await command.handler(rest, io);
+  } catch (error) {
+    if (error instanceof UsageError || isParseArgsError(error)) {
+      io.stderr(`${error.message}\n\n${command.usage}`);
       return EXIT_USAGE;
+    }
+    io.stderr(`Error: ${errorMessage(error)}`);
+    return EXIT_FAILURE;
   }
 }

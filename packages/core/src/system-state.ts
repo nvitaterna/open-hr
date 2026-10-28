@@ -200,7 +200,14 @@ export async function readSystemState(options: ReadOptions): Promise<SystemSnaps
       return { device, role: driveRole(device), smart };
     }),
   );
-  return { drives, mdArrays, ...lvm, mounts, warnings: context.warnings };
+  // Reads run in parallel, so sort warnings to keep output the same from run to run.
+  return {
+    drives,
+    mdArrays,
+    ...lvm,
+    mounts,
+    warnings: context.warnings.toSorted((a, b) => a.localeCompare(b)),
+  };
 }
 
 /** Reads only the drive list, which needs no root and runs a single command. */

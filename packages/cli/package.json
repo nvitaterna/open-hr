@@ -18,6 +18,7 @@
     "test:coverage": "vitest run --passWithNoTests --coverage"
   },
   "dependencies": {
+    "@ohr/core": "workspace:*",
     "@ohr/shared": "workspace:*"
   },
   "devDependencies": {

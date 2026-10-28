@@ -29,4 +29,7 @@ jobs:
       - run: pnpm test:coverage
       - run: pnpm build
       - name: Smoke test the CLI
-        run: node packages/cli/dist/bin.js version
+        run: |
+          node packages/cli/dist/bin.js version
+          node packages/cli/dist/bin.js plan --redundancy shr1 --sizes 4TB,8TB,8TB
+          node packages/cli/dist/bin.js status
