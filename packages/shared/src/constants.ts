@@ -3,6 +3,12 @@
  * change here is a change to the plan and needs a decision record.
  */
 
+const BYTES_PER_KIB = 1024;
+const BYTES_PER_MIB = BYTES_PER_KIB * BYTES_PER_KIB;
+const ALIGNMENT_MIB = 1;
+const END_RESERVE_MIB = 64;
+const LABEL_PARTITION_MIB = 16;
+
 export const PROJECT_NAME = 'Open Hybrid RAID';
 export const SHORT_NAME = 'ohr';
 
@@ -32,13 +38,11 @@ export const MIN_DRIVES: Readonly<Record<Redundancy, number>> = {
 export type FilesystemType = 'btrfs' | 'ext4';
 export const FILESYSTEMS: readonly FilesystemType[] = ['btrfs', 'ext4'];
 
-const MIB = 1024 * 1024;
-
 /** Partition alignment in bytes. */
-export const PARTITION_ALIGNMENT_BYTES = 1 * MIB;
+export const PARTITION_ALIGNMENT_BYTES = ALIGNMENT_MIB * BYTES_PER_MIB;
 
 /** Unused space kept at the end of every drive so a slightly smaller replacement still fits. */
-export const END_OF_DRIVE_RESERVE_BYTES = 64 * MIB;
+export const END_OF_DRIVE_RESERVE_BYTES = END_RESERVE_MIB * BYTES_PER_MIB;
 
 /** Size of the per-drive label partition that holds the Open HR descriptor. */
-export const LABEL_PARTITION_BYTES = 16 * MIB;
+export const LABEL_PARTITION_BYTES = LABEL_PARTITION_MIB * BYTES_PER_MIB;

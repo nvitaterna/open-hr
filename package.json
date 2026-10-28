@@ -9,21 +9,17 @@
     "node": ">=26"
   },
   "scripts": {
-    "build": "tsc -b",
-    "typecheck": "tsc -p tsconfig.check.json",
-    "lint": "biome check .",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "lint": "biome check --error-on-warnings .",
     "format": "biome check --write .",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "clean": "rm -rf packages/*/dist packages/*/*.tsbuildinfo coverage",
-    "check": "pnpm lint && pnpm typecheck && pnpm test"
+    "check": "biome check --error-on-warnings . && turbo run typecheck test",
+    "clean": "rm -rf packages/*/dist packages/*/coverage .turbo packages/*/.turbo"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.3",
-    "@types/node": "^26.6.5",
-    "@vitest/coverage-v8": "^5.0.5",
-    "typescript": "^7.0.2",
-    "vitest": "^5.0.5"
+    "turbo": "^2.11.10"
   }
 }

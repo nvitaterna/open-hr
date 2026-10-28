@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-import { run } from './run.js';
+import process from 'node:process';
+
+import { run } from './run.ts';
 
 process.exitCode = run(process.argv.slice(2), {
-  stdout: (line) => console.log(line),
-  stderr: (line) => console.error(line),
+  stdout: (line) => process.stdout.write(`${line}\n`),
+  stderr: (line) => process.stderr.write(`${line}\n`),
 });

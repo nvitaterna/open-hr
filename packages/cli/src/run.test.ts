@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { run } from './run.js';
+
+import { run } from './run.ts';
 
 function capture(args: string[]) {
   const stdout: string[] = [];

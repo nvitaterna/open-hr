@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import {
   DEFAULT_MOUNT_ROOT,
   DEFAULT_WEB_PORT,
@@ -8,7 +9,7 @@ import {
   MIN_DRIVES,
   PARTITION_ALIGNMENT_BYTES,
   SHORT_NAME,
-} from './constants.js';
+} from './constants.ts';
 
 describe('constants', () => {
   it('matches the decisions recorded in the plan', () => {

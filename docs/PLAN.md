@@ -342,7 +342,8 @@ Two long-running processes plus a CLI, all TypeScript, all in one repository.
 ```
 open-hr/
   package.json              pnpm workspace root
-  pnpm-workspace.yaml
+  pnpm-workspace.yaml       workspace packages and version catalog
+  turbo.json                task pipeline
   packages/
     shared/                 zod schemas, types, planner (pure), parsers (pure)
     core/                   root daemon: job engine, executors, monitor, db
@@ -364,21 +365,22 @@ open-hr/
 
 ### 5.3 Technology choices
 
-| Concern          | Choice                                                          | Why                                                         |
-| ---------------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
-| Runtime          | Node.js current LTS (26 at time of writing)                     | ESM, stable `fetch`, good child process APIs                |
-| Language         | TypeScript strict mode                                          | catches whole classes of bugs before they reach a drive     |
-| Package manager  | pnpm workspaces                                                 | fast, strict dependency isolation                           |
-| Validation       | zod                                                             | one schema per API shape, shared between core, web, ui, cli |
-| HTTP server      | Fastify                                                         | fast, typed, first-class schema validation, SSE is easy     |
-| Process spawning | execa with argument arrays, never a shell string                | removes injection risk entirely                             |
-| Database         | SQLite via better-sqlite3                                       | zero ops, single file, transactional                        |
-| UI               | React, Vite, Tailwind, TanStack Query                           | standard, fast to build, easy for contributors              |
-| Testing          | Vitest, fast-check for property tests, Playwright for e2e       |                                                             |
-| Lint and format  | Biome                                                           | one tool instead of ESLint plus Prettier                    |
-| Bundling         | esbuild or tsup to one file per package                         | simple deployment                                           |
-| Packaging        | nfpm to build `.deb`, bundling the Node binary under `/opt/ohr` | no dependency on the distro's Node version                  |
-| Docs             | Starlight (Astro) later                                         |                                                             |
+| Concern          | Choice                                                                    | Why                                                                |
+| ---------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Runtime          | Node.js current LTS (26 at time of writing)                               | ESM, stable `fetch`, good child process APIs                       |
+| Language         | TypeScript strict mode                                                    | catches whole classes of bugs before they reach a drive            |
+| Package manager  | pnpm 12 workspaces with a version catalog                                 | fast, strict dependency isolation                                  |
+| Task runner      | Turborepo                                                                 | runs package tasks in dependency order with caching                |
+| Validation       | zod                                                                       | one schema per API shape, shared between core, web, ui, cli        |
+| HTTP server      | Fastify                                                                   | fast, typed, first-class schema validation, SSE is easy            |
+| Process spawning | execa with argument arrays, never a shell string                          | removes injection risk entirely                                    |
+| Database         | SQLite via better-sqlite3                                                 | zero ops, single file, transactional                               |
+| UI               | React, Vite, Tailwind, TanStack Query                                     | standard, fast to build, easy for contributors                     |
+| Testing          | Vitest, fast-check for property tests, Playwright for e2e                 |                                                                    |
+| Lint and format  | Biome, `all` preset, warnings fail, sorted import groups, no barrel files | one strict tool instead of ESLint plus Prettier; see decision 0002 |
+| Bundling         | esbuild or tsup to one file per package                                   | simple deployment                                                  |
+| Packaging        | nfpm to build `.deb`, bundling the Node binary under `/opt/ohr`           | no dependency on the distro's Node version                         |
+| Docs             | Starlight (Astro) later                                                   |                                                                    |
 
 ### 5.4 Core daemon internals
 

@@ -11,3 +11,4 @@ coverage/
 !.vscode/settings.json
 # loop device images from local integration testing
 *.img
+.turbo/

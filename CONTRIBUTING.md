@@ -18,7 +18,7 @@ correctness is high. Read this whole file before opening a pull request.
 
 ## Development setup
 
-You need Node.js 26 (see `.nvmrc`) and pnpm 12. Enable pnpm with Corepack:
+You need Node.js 26 (see `.nvmrc`). pnpm 12 and Turborepo come through Corepack and the workspace:
 
 ```sh
 corepack enable
@@ -32,20 +32,41 @@ section 9 describes the recommended Debian VM with extra virtual disks.
 
 ## Useful scripts
 
-| Script               | What it does                          |
-| -------------------- | ------------------------------------- |
-| `pnpm lint`          | Biome lint and format check           |
-| `pnpm format`        | Apply Biome fixes and formatting      |
-| `pnpm typecheck`     | TypeScript over all sources and tests |
-| `pnpm test`          | Unit tests with Vitest                |
-| `pnpm test:coverage` | Unit tests with a coverage report     |
-| `pnpm build`         | Compile every package to `dist`       |
-| `pnpm check`         | Lint, typecheck, and test in one go   |
+| Script               | What it does                                               |
+| -------------------- | ---------------------------------------------------------- |
+| `pnpm lint`          | Biome lint, format, and import order check. Warnings fail. |
+| `pnpm format`        | Apply Biome fixes, formatting, and import sorting          |
+| `pnpm typecheck`     | TypeScript over every package, tests included              |
+| `pnpm test`          | Unit tests with Vitest in every package                    |
+| `pnpm test:coverage` | Unit tests with coverage reports                           |
+| `pnpm build`         | Compile every package to `dist`                            |
+| `pnpm check`         | Lint, typecheck, and test in one go                        |
+
+Package tasks run through Turborepo, which caches results. Run one package's
+tasks with a filter, for example `pnpm turbo run test --filter=@ohr/shared`.
+
+## Code conventions
+
+These are enforced by Biome and TypeScript, so CI fails if they are broken.
+The reasoning is in [decision 0002](docs/decisions/0002-toolchain.md).
+
+- **No barrel files.** Never write an `index.ts` that re-exports other modules.
+  Import from the module that defines the thing, for example
+  `import { MIN_DRIVES } from '@ohr/shared/constants'`.
+- **Relative imports use the `.ts` extension**, for example `./run.ts`.
+- **Imports are grouped and sorted**: Node built-ins, third-party packages,
+  `@ohr/*` packages, then relative paths, with a blank line between groups.
+  `pnpm format` does this for you.
+- **No magic numbers** outside tests. Give every number a named constant.
+- **No Node built-ins in `shared` or `ui`**, because they run in the browser.
+- **Exports go last** in a file, after private helpers and constants.
+- **No `console`.** Write to `process.stdout` and `process.stderr`, or use the
+  logger once it exists.
 
 ## Repository layout
 
 ```
-packages/shared   schemas, types, layout planner, parsers (pure, no side effects)
+packages/shared   schemas, types, layout planner, parsers (pure, browser-safe)
 packages/core     root daemon: job engine, executors, monitor, database
 packages/web      web server: API, auth, serves the UI
 packages/ui       React UI
