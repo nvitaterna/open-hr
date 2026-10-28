@@ -6,7 +6,13 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/dist", "!**/coverage", "!pnpm-lock.yaml"]
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/coverage",
+      "!pnpm-lock.yaml",
+      "!**/fixtures"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -46,13 +52,24 @@
           "level": "on",
           "options": {
             "groups": [
-              [":NODE:", ":BUN:"],
+              [
+                ":NODE:",
+                ":BUN:"
+              ],
               ":BLANK_LINE:",
-              [":PACKAGE:", ":PACKAGE_WITH_PROTOCOL:", ":URL:", "!@ohr/**"],
+              [
+                ":PACKAGE:",
+                ":PACKAGE_WITH_PROTOCOL:",
+                ":URL:",
+                "!@ohr/**"
+              ],
               ":BLANK_LINE:",
               "@ohr/**",
               ":BLANK_LINE:",
-              [":ALIAS:", ":PATH:"]
+              [
+                ":ALIAS:",
+                ":PATH:"
+              ]
             ]
           }
         }
@@ -61,7 +78,11 @@
   },
   "overrides": [
     {
-      "includes": ["packages/core/**", "packages/web/**", "packages/cli/**"],
+      "includes": [
+        "packages/core/**",
+        "packages/web/**",
+        "packages/cli/**"
+      ],
       "linter": {
         "rules": {
           "correctness": {
@@ -71,11 +92,53 @@
       }
     },
     {
-      "includes": ["**/*.test.ts"],
+      "includes": [
+        "**/*.test.ts"
+      ],
       "linter": {
         "rules": {
           "style": {
             "noMagicNumbers": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/shared/src/parsers/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "useNamingConvention": {
+              "level": "error",
+              "options": {
+                "conventions": [
+                  {
+                    "selector": {
+                      "kind": "objectLiteralProperty"
+                    },
+                    "formats": [
+                      "camelCase",
+                      "snake_case"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "**/*.test.ts",
+        "**/*-test-helpers.ts"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noNodejsModules": "off"
           }
         }
       }

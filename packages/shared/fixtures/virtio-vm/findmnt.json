@@ -1,0 +1,232 @@
+{
+  "filesystems": [
+    {
+      "target": "/",
+      "source": "/dev/vda",
+      "fstype": "ext4",
+      "options": "rw,relatime,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+      "size": 270553174016,
+      "used": 9637830656,
+      "avail": 31684677632,
+      "children": [
+        {
+          "target": "/proc",
+          "source": "proc",
+          "fstype": "proc",
+          "options": "rw,relatime",
+          "size": 0,
+          "used": 0,
+          "avail": 0
+        },
+        {
+          "target": "/sys",
+          "source": "sysfs",
+          "fstype": "sysfs",
+          "options": "rw,relatime",
+          "size": 0,
+          "used": 0,
+          "avail": 0,
+          "children": [
+            {
+              "target": "/sys/fs/cgroup",
+              "source": "tmpfs",
+              "fstype": "tmpfs",
+              "options": "rw,relatime,mode=755",
+              "size": 8436404224,
+              "used": 0,
+              "avail": 8436404224,
+              "children": [
+                {
+                  "target": "/sys/fs/cgroup/cpu",
+                  "source": "cgroup",
+                  "fstype": "cgroup",
+                  "options": "rw,relatime,cpu",
+                  "size": 0,
+                  "used": 0,
+                  "avail": 0
+                },
+                {
+                  "target": "/sys/fs/cgroup/cpuacct",
+                  "source": "cgroup",
+                  "fstype": "cgroup",
+                  "options": "rw,relatime,cpuacct",
+                  "size": 0,
+                  "used": 0,
+                  "avail": 0
+                },
+                {
+                  "target": "/sys/fs/cgroup/cpuset",
+                  "source": "cgroup",
+                  "fstype": "cgroup",
+                  "options": "rw,relatime,cpuset",
+                  "size": 0,
+                  "used": 0,
+                  "avail": 0
+                },
+                {
+                  "target": "/sys/fs/cgroup/memory",
+                  "source": "cgroup",
+                  "fstype": "cgroup",
+                  "options": "rw,relatime,memory",
+                  "size": 0,
+                  "used": 0,
+                  "avail": 0
+                },
+                {
+                  "target": "/sys/fs/cgroup/devices",
+                  "source": "cgroup",
+                  "fstype": "cgroup",
+                  "options": "rw,relatime,devices",
+                  "size": 0,
+                  "used": 0,
+                  "avail": 0
+                },
+                {
+                  "target": "/sys/fs/cgroup/freezer",
+                  "source": "cgroup",
+                  "fstype": "cgroup",
+                  "options": "rw,relatime,freezer",
+                  "size": 0,
+                  "used": 0,
+                  "avail": 0
+                },
+                {
+                  "target": "/sys/fs/cgroup/blkio",
+                  "source": "cgroup",
+                  "fstype": "cgroup",
+                  "options": "rw,relatime,blkio",
+                  "size": 0,
+                  "used": 0,
+                  "avail": 0
+                },
+                {
+                  "target": "/sys/fs/cgroup/pids",
+                  "source": "cgroup",
+                  "fstype": "cgroup",
+                  "options": "rw,relatime,pids",
+                  "size": 0,
+                  "used": 0,
+                  "avail": 0
+                },
+                {
+                  "target": "/sys/fs/cgroup/systemd",
+                  "source": "cgroup",
+                  "fstype": "cgroup",
+                  "options": "rw,relatime,name=systemd",
+                  "size": 0,
+                  "used": 0,
+                  "avail": 0
+                },
+                {
+                  "target": "/sys/fs/cgroup/unified",
+                  "source": "cgroup2",
+                  "fstype": "cgroup2",
+                  "options": "rw,relatime",
+                  "size": 0,
+                  "used": 0,
+                  "avail": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "target": "/dev",
+          "source": "devtmpfs",
+          "fstype": "devtmpfs",
+          "options": "rw,relatime,size=8227508k,nr_inodes=2056877,mode=755",
+          "size": 8424968192,
+          "used": 0,
+          "avail": 8424968192,
+          "children": [
+            {
+              "target": "/dev/shm",
+              "source": "tmpfs",
+              "fstype": "tmpfs",
+              "options": "rw,relatime,size=16477352k",
+              "size": 16872808448,
+              "used": 0,
+              "avail": 16872808448,
+              "children": [
+                {
+                  "target": "/dev/shm",
+                  "source": "tmpfs",
+                  "fstype": "tmpfs",
+                  "options": "rw,relatime,size=16477352k",
+                  "size": 16872808448,
+                  "used": 0,
+                  "avail": 16872808448
+                }
+              ]
+            },
+            {
+              "target": "/dev/pts",
+              "source": "devpts",
+              "fstype": "devpts",
+              "options": "rw,relatime,mode=600,ptmxmode=000",
+              "size": 0,
+              "used": 0,
+              "avail": 0,
+              "children": [
+                {
+                  "target": "/dev/pts",
+                  "source": "devpts",
+                  "fstype": "devpts",
+                  "options": "rw,relatime,mode=600,ptmxmode=000",
+                  "size": 0,
+                  "used": 0,
+                  "avail": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "target": "/opt/app-a",
+          "source": "/dev/vdb",
+          "fstype": "squashfs",
+          "options": "ro,relatime,errors=continue",
+          "size": 13107200,
+          "used": 13107200,
+          "avail": 0
+        },
+        {
+          "target": "/opt/app-b",
+          "source": "/dev/vdc",
+          "fstype": "ext4",
+          "options": "ro,nosuid,nodev,relatime,norecovery",
+          "size": 323952640,
+          "used": 291512320,
+          "avail": 25939968
+        },
+        {
+          "target": "/opt/app-c",
+          "source": "/dev/vdd",
+          "fstype": "ext4",
+          "options": "ro,nosuid,nodev,relatime,norecovery",
+          "size": 49553408,
+          "used": 32165888,
+          "avail": 16375808
+        },
+        {
+          "target": "/mnt/data-a",
+          "source": "/dev/vde",
+          "fstype": "squashfs",
+          "options": "ro,relatime,errors=continue",
+          "size": 786432,
+          "used": 786432,
+          "avail": 0
+        },
+        {
+          "target": "/mnt/data-b",
+          "source": "/dev/vdf",
+          "fstype": "squashfs",
+          "options": "ro,relatime,errors=continue",
+          "size": 6160384,
+          "used": 6160384,
+          "avail": 0
+        }
+      ]
+    }
+  ]
+}

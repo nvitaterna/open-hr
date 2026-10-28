@@ -1,0 +1,16 @@
+{
+  "report": [
+    {
+      "vg": [
+        {
+          "vg_name": "ohr-p1",
+          "vg_uuid": "Kp4Lm8-Nq2R-s7Tv-W3xY-z9Ab-C5dE-f1Gh6J",
+          "vg_size": "12001770209280",
+          "vg_free": "0",
+          "pv_count": "2",
+          "lv_count": "1"
+        }
+      ]
+    }
+  ]
+}

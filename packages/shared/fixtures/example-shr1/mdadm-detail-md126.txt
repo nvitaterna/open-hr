@@ -1,0 +1,10 @@
+MD_LEVEL=raid1
+MD_DEVICES=2
+MD_METADATA=1.2
+MD_UUID=a41f6b2c:0e9d3a75:c86b1f40:2d7e5a98
+MD_DEVNAME=ohr_p1_t2
+MD_NAME=nas:ohr_p1_t2
+MD_DEVICE_dev_sdb3_ROLE=0
+MD_DEVICE_dev_sdb3_DEV=/dev/sdb3
+MD_DEVICE_dev_sdc3_ROLE=1
+MD_DEVICE_dev_sdc3_DEV=/dev/sdc3

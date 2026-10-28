@@ -1,0 +1,33 @@
+{
+  "filesystems": [
+    {
+      "target": "/",
+      "source": "/dev/nvme0n1p2",
+      "fstype": "ext4",
+      "options": "rw,relatime,errors=remount-ro",
+      "size": 475204448256,
+      "used": 8123456512,
+      "avail": 442873163776,
+      "children": [
+        {
+          "target": "/boot/efi",
+          "source": "/dev/nvme0n1p1",
+          "fstype": "vfat",
+          "options": "rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=ascii,shortname=mixed,utf8,errors=remount-ro",
+          "size": 535805952,
+          "used": 6213632,
+          "avail": 529592320
+        },
+        {
+          "target": "/mnt/ohr/data",
+          "source": "/dev/mapper/ohr--p1-data[/@data]",
+          "fstype": "btrfs",
+          "options": "rw,noatime,space_cache=v2,subvolid=256,subvol=/@data",
+          "size": 12001770209280,
+          "used": 3214567890123,
+          "avail": 8786128577333
+        }
+      ]
+    }
+  ]
+}
