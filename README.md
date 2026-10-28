@@ -21,6 +21,20 @@ grow over time. Built on standard `mdadm` and LVM, managed from a web UI and CLI
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 
+## Try it
+
+Nothing in Open HR writes to a drive yet. Two read-only commands work today.
+There is no package yet, so run them from a build:
+
+```sh
+pnpm install && pnpm build
+alias ohr="node $PWD/packages/cli/dist/bin.js"
+
+ohr plan --redundancy shr1 --sizes 4TB,8TB,8TB      # layout for hypothetical drives
+ohr status                                          # drives, arrays, volume groups
+sudo node packages/cli/dist/bin.js status --smart   # with SMART health, needs root
+```
+
 ## Development
 
 ```sh

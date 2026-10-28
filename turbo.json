@@ -12,11 +12,11 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "package.json"]
+      "inputs": ["src/**", "fixtures/**", "package.json"]
     },
     "test:coverage": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "package.json"],
+      "inputs": ["src/**", "fixtures/**", "package.json"],
       "outputs": ["coverage/**"]
     }
   }

@@ -29,11 +29,21 @@ name the real `.ts` file, and `rewriteRelativeImportExtensions` turns them into
 **Linting.** Biome's `all` preset, which enables every stable rule, and
 warnings fail the check. The only exceptions:
 
-| Rule                  | Off for              | Why                                                                                                                                                     |
-| --------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `noNodejsModules`     | `core`, `web`, `cli` | They run on the server. The rule stays on for `shared` and `ui`, which must work in the browser.                                                        |
-| `noMagicNumbers`      | test files           | Tests compare against literal expected values.                                                                                                          |
-| `noUnresolvedImports` | everywhere           | It resolves `@ohr/*` packages through their build output, so lint would fail before a build. `pnpm typecheck` already fails on every unresolved import. |
+| Rule                  | Off for                            | Why                                                                                                                                                     |
+| --------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `noNodejsModules`     | `core`, `web`, `cli`               | They run on the server. The rule stays on for `shared` and `ui`, which must work in the browser.                                                        |
+| `noMagicNumbers`      | test files                         | Tests compare against literal expected values.                                                                                                          |
+| `noUnresolvedImports` | everywhere                         | It resolves `@ohr/*` packages through their build output, so lint would fail before a build. `pnpm typecheck` already fails on every unresolved import. |
+| `useNamingConvention` | `shared/src/parsers`               | Allows snake_case object keys, because parsers must match field names that tools such as LVM and smartctl print.                                        |
+| `noNodejsModules`     | test files and `*-test-helpers.ts` | Tests run in Node and read fixture files.                                                                                                               |
+
+Rule domains for frameworks the project does not use are switched off:
+Astro, Drizzle, Next.js, Qwik, React Native, Solid, Svelte, and Vue. The
+`all` preset would otherwise apply their framework-specific advice to plain
+TypeScript.
+
+Files ending in `-test-helpers.ts` hold code shared between tests. They are
+typechecked and linted like tests and are never built into `dist`.
 
 **Import order.** Biome's import organizer sorts imports into groups separated
 by blank lines, alphabetical within each group, and the check fails on

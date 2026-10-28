@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/dist", "!**/coverage", "!pnpm-lock.yaml"]
+    "includes": ["**", "!**/dist", "!**/coverage", "!pnpm-lock.yaml", "!**/fixtures"]
   },
   "formatter": {
     "enabled": true,
@@ -31,6 +31,16 @@
         "noUnusedImports": "error",
         "noUnresolvedImports": "off"
       }
+    },
+    "domains": {
+      "astro": "none",
+      "drizzle": "none",
+      "next": "none",
+      "qwik": "none",
+      "reactNative": "none",
+      "solid": "none",
+      "svelte": "none",
+      "vue": "none"
     }
   },
   "javascript": {
@@ -76,6 +86,38 @@
         "rules": {
           "style": {
             "noMagicNumbers": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/shared/src/parsers/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useNamingConvention": {
+              "level": "error",
+              "options": {
+                "conventions": [
+                  {
+                    "selector": {
+                      "kind": "objectLiteralProperty"
+                    },
+                    "formats": ["camelCase", "snake_case"]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.test.ts", "**/*-test-helpers.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noNodejsModules": "off"
           }
         }
       }

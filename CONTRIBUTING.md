@@ -63,6 +63,19 @@ The reasoning is in [decision 0002](docs/decisions/0002-toolchain.md).
 - **No `console`.** Write to `process.stdout` and `process.stderr`, or use the
   logger once it exists.
 
+## Tests and fixtures
+
+- Parsers are tested against sample command output in
+  `packages/shared/fixtures`. The README there says which samples are real
+  and which are synthesized.
+- To capture real output from a test machine, run
+  `sudo scripts/capture-fixtures.sh`. It only reads. Review the files for
+  serial numbers and hostnames before committing them.
+- Code shared between tests goes in a file ending in `-test-helpers.ts`. It
+  is never built into `dist`.
+- Tests never run commands that change a system. Code that does goes through
+  the command runner in `core`, which tests replace with a fake.
+
 ## Repository layout
 
 ```

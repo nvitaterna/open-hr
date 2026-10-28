@@ -1,0 +1,17 @@
+{
+  "report": [
+    {
+      "lv": [
+        {
+          "lv_name": "data",
+          "vg_name": "ohr-p1",
+          "lv_uuid": "Rt6Yu1-Io9P-a4Sd-F8gH-j2Kl-Z7xC-v3Bn5M",
+          "lv_size": "12001770209280",
+          "lv_path": "/dev/ohr-p1/data",
+          "lv_attr": "-wi-ao----",
+          "segtype": "linear"
+        }
+      ]
+    }
+  ]
+}
