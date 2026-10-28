@@ -8,6 +8,7 @@ const BYTES_PER_MIB = BYTES_PER_KIB * BYTES_PER_KIB;
 const ALIGNMENT_MIB = 1;
 const END_RESERVE_MIB = 64;
 const LABEL_PARTITION_MIB = 16;
+const MIN_TIER_GIB = 1;
 
 export const PROJECT_NAME = 'Open Hybrid RAID';
 export const SHORT_NAME = 'ohr';
@@ -46,3 +47,13 @@ export const END_OF_DRIVE_RESERVE_BYTES = END_RESERVE_MIB * BYTES_PER_MIB;
 
 /** Size of the per-drive label partition that holds the Open HR descriptor. */
 export const LABEL_PARTITION_BYTES = LABEL_PARTITION_MIB * BYTES_PER_MIB;
+
+/** Where the first partition starts. The GPT header and table live before it. */
+export const FIRST_PARTITION_OFFSET_BYTES = PARTITION_ALIGNMENT_BYTES;
+
+/**
+ * Smallest tier worth building an array for. Drives whose usable sizes differ
+ * by less than this are treated as the same size, so two "4 TB" drives from
+ * different vendors do not create a tiny extra tier.
+ */
+export const MIN_TIER_BYTES = MIN_TIER_GIB * BYTES_PER_KIB * BYTES_PER_MIB;
