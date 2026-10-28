@@ -18,28 +18,28 @@ comfortable with Node and TypeScript but new to Linux storage.
 
 These came out of the planning conversation and are fixed unless revisited on purpose.
 
-| Topic | Decision |
-|---|---|
-| Product | Userspace tool reproducing the SHR layout on stock Linux. No kernel code. |
-| Redundancy | SHR-1 (survives one drive failure) and SHR-2 (survives two). |
-| Lifecycle | Online expansion by adding a drive and by replacing a drive with a larger one. |
-| Resilience | Hot spares, scheduled scrubbing, rebuild monitoring, webhook alerts. |
-| Filesystems | User chooses btrfs or ext4 per volume. Both supported. |
-| Extras | Snapshots, encryption, SSD cache. |
-| Platforms | Debian (12 and 13) and Proxmox VE (8 and 9). Manages data drives only, never the boot drive. Unraid is out of scope. |
-| Interface | Web UI served from the NAS, plus a CLI. No Electron. |
-| Stack | Node.js with TypeScript end to end. React for the UI. |
-| Compatibility | No import or export of real Synology pools. On-disk format is ours. |
-| Audience | Home users. |
-| Team | One developer. Hours per week and release date not yet set. |
-| Licence | MIT. |
-| Name | Public name "Open Hybrid RAID", short form `ohr` for binaries, services, and device names. Repository stays `open-hr`. |
-| Dates | None for now. Milestones are ordered and sized, not scheduled. |
-| Docs hosting | GitHub Pages for the documentation site and the apt repository. |
-| Defaults | Web UI on port 7700, volumes mounted under `/mnt/ohr`. |
-| Alerts | One generic webhook that posts a JSON body. No email, no service-specific presets. |
-| Telemetry | None in version 1. Deferred to version 2, opt-in only if it ever ships. |
-| Minimum drives | Two for SHR-1, four for SHR-2. No single-drive pools. |
+| Topic          | Decision                                                                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Product        | Userspace tool reproducing the SHR layout on stock Linux. No kernel code.                                              |
+| Redundancy     | SHR-1 (survives one drive failure) and SHR-2 (survives two).                                                           |
+| Lifecycle      | Online expansion by adding a drive and by replacing a drive with a larger one.                                         |
+| Resilience     | Hot spares, scheduled scrubbing, rebuild monitoring, webhook alerts.                                                   |
+| Filesystems    | User chooses btrfs or ext4 per volume. Both supported.                                                                 |
+| Extras         | Snapshots, encryption, SSD cache.                                                                                      |
+| Platforms      | Debian (12 and 13) and Proxmox VE (8 and 9). Manages data drives only, never the boot drive. Unraid is out of scope.   |
+| Interface      | Web UI served from the NAS, plus a CLI. No Electron.                                                                   |
+| Stack          | Node.js with TypeScript end to end. React for the UI.                                                                  |
+| Compatibility  | No import or export of real Synology pools. On-disk format is ours.                                                    |
+| Audience       | Home users.                                                                                                            |
+| Team           | One developer. Hours per week and release date not yet set.                                                            |
+| Licence        | MIT.                                                                                                                   |
+| Name           | Public name "Open Hybrid RAID", short form `ohr` for binaries, services, and device names. Repository stays `open-hr`. |
+| Dates          | None for now. Milestones are ordered and sized, not scheduled.                                                         |
+| Docs hosting   | GitHub Pages for the documentation site and the apt repository.                                                        |
+| Defaults       | Web UI on port 7700, volumes mounted under `/mnt/ohr`.                                                                 |
+| Alerts         | One generic webhook that posts a JSON body. No email, no service-specific presets.                                     |
+| Telemetry      | None in version 1. Deferred to version 2, opt-in only if it ever ships.                                                |
+| Minimum drives | Two for SHR-1, four for SHR-2. No single-drive pools.                                                                  |
 
 ---
 
@@ -104,7 +104,7 @@ so a RAID5 of 4 TB, 8 TB, 8 TB, and 12 TB drives treats every drive as 4 TB.
 
 ### 3.2 The SHR trick
 
-SHR removes that waste by slicing drives into *tiers* and building one md array
+SHR removes that waste by slicing drives into _tiers_ and building one md array
 per tier:
 
 1. Sort the drives by size.
@@ -118,12 +118,12 @@ per tier:
 
 Worked example, SHR-1 with 4 TB, 8 TB, 8 TB, 12 TB:
 
-| Tier | Slice size | Drives contributing | md level | Usable |
-|---|---|---|---|---|
-| 1 | 4 TB | all 4 | RAID5 (4 members) | 12 TB |
-| 2 | 4 TB (8 minus 4) | the 8, 8, and 12 TB drives | RAID5 (3 members) | 8 TB |
-| 3 | 4 TB (12 minus 8) | only the 12 TB drive | none, 1 member is not redundant | 0 |
-| **Total** | | | | **20 TB** |
+| Tier      | Slice size        | Drives contributing        | md level                        | Usable    |
+| --------- | ----------------- | -------------------------- | ------------------------------- | --------- |
+| 1         | 4 TB              | all 4                      | RAID5 (4 members)               | 12 TB     |
+| 2         | 4 TB (8 minus 4)  | the 8, 8, and 12 TB drives | RAID5 (3 members)               | 8 TB      |
+| 3         | 4 TB (12 minus 8) | only the 12 TB drive       | none, 1 member is not redundant | 0         |
+| **Total** |                   |                            |                                 | **20 TB** |
 
 Total drive space is 32 TB. 32 minus the largest drive (12) is 20. That matches.
 The 4 TB left on the 12 TB drive is wasted until another drive at least that
@@ -131,14 +131,14 @@ large arrives, at which point tier 3 becomes a RAID1 of two members.
 
 ### 3.3 Which md level per tier
 
-| Redundancy | Members in tier | md level used | Usable in tier |
-|---|---|---|---|
-| SHR-1 | 1 | none, tier left unused | 0 |
-| SHR-1 | 2 | RAID1 | 1 x slice |
-| SHR-1 | 3 or more | RAID5 | (n minus 1) x slice |
-| SHR-2 | 1 or 2 | none, cannot survive two failures | 0 |
-| SHR-2 | 3 | RAID1 with 3 copies | 1 x slice |
-| SHR-2 | 4 or more | RAID6 | (n minus 2) x slice |
+| Redundancy | Members in tier | md level used                     | Usable in tier      |
+| ---------- | --------------- | --------------------------------- | ------------------- |
+| SHR-1      | 1               | none, tier left unused            | 0                   |
+| SHR-1      | 2               | RAID1                             | 1 x slice           |
+| SHR-1      | 3 or more       | RAID5                             | (n minus 1) x slice |
+| SHR-2      | 1 or 2          | none, cannot survive two failures | 0                   |
+| SHR-2      | 3               | RAID1 with 3 copies               | 1 x slice           |
+| SHR-2      | 4 or more       | RAID6                             | (n minus 2) x slice |
 
 Minimum drives: 2 for SHR-1, 4 for SHR-2. Single-drive pools are refused. These rules reproduce the published
 Synology capacity results for every combination checked by hand, but exact
@@ -164,21 +164,21 @@ which `mdadm` supports.
 Open HR never does anything a sysadmin could not do by hand. The core
 operations map to these tools, all of which exist in Debian:
 
-| Operation | Tool |
-|---|---|
-| Inspect drives and partitions | `lsblk -J`, `blkid`, `sgdisk -p` |
-| Partition a drive | `sgdisk` (GPT, type FD00 Linux RAID, named partitions) |
-| Create, grow, fail, remove, monitor arrays | `mdadm`, `/proc/mdstat`, `/sys/block/md*/md/*` |
-| Pool the arrays | `pvcreate`, `vgcreate`, `vgextend`, `pvresize` |
-| Create and grow volumes | `lvcreate`, `lvextend`, `lvs --reportformat json` |
-| Encrypt | `cryptsetup luksFormat`, `cryptsetup open`, `cryptsetup resize` |
-| SSD cache | LVM cache (`lvconvert --type cache --cachevol`) |
-| Filesystems | `mkfs.btrfs`, `mkfs.ext4`, `btrfs filesystem resize`, `resize2fs` |
-| Snapshots | `btrfs subvolume snapshot`; ext4 volumes have no snapshots, same as Synology |
-| Scrub | `echo check > /sys/block/mdX/md/sync_action`, `btrfs scrub start` |
-| Drive health | `smartctl -j` |
-| Hotplug events | `udevadm monitor` or the udev netlink socket |
-| Mount at boot | systemd mount units generated by Open HR |
+| Operation                                  | Tool                                                                         |
+| ------------------------------------------ | ---------------------------------------------------------------------------- |
+| Inspect drives and partitions              | `lsblk -J`, `blkid`, `sgdisk -p`                                             |
+| Partition a drive                          | `sgdisk` (GPT, type FD00 Linux RAID, named partitions)                       |
+| Create, grow, fail, remove, monitor arrays | `mdadm`, `/proc/mdstat`, `/sys/block/md*/md/*`                               |
+| Pool the arrays                            | `pvcreate`, `vgcreate`, `vgextend`, `pvresize`                               |
+| Create and grow volumes                    | `lvcreate`, `lvextend`, `lvs --reportformat json`                            |
+| Encrypt                                    | `cryptsetup luksFormat`, `cryptsetup open`, `cryptsetup resize`              |
+| SSD cache                                  | LVM cache (`lvconvert --type cache --cachevol`)                              |
+| Filesystems                                | `mkfs.btrfs`, `mkfs.ext4`, `btrfs filesystem resize`, `resize2fs`            |
+| Snapshots                                  | `btrfs subvolume snapshot`; ext4 volumes have no snapshots, same as Synology |
+| Scrub                                      | `echo check > /sys/block/mdX/md/sync_action`, `btrfs scrub start`            |
+| Drive health                               | `smartctl -j`                                                                |
+| Hotplug events                             | `udevadm monitor` or the udev netlink socket                                 |
+| Mount at boot                              | systemd mount units generated by Open HR                                     |
 
 ---
 
@@ -364,21 +364,21 @@ open-hr/
 
 ### 5.3 Technology choices
 
-| Concern | Choice | Why |
-|---|---|---|
-| Runtime | Node.js current LTS (24 at time of writing) | ESM, stable `fetch`, good child process APIs |
-| Language | TypeScript strict mode | catches whole classes of bugs before they reach a drive |
-| Package manager | pnpm workspaces | fast, strict dependency isolation |
-| Validation | zod | one schema per API shape, shared between core, web, ui, cli |
-| HTTP server | Fastify | fast, typed, first-class schema validation, SSE is easy |
-| Process spawning | execa with argument arrays, never a shell string | removes injection risk entirely |
-| Database | SQLite via better-sqlite3 | zero ops, single file, transactional |
-| UI | React, Vite, Tailwind, TanStack Query | standard, fast to build, easy for contributors |
-| Testing | Vitest, fast-check for property tests, Playwright for e2e | |
-| Lint and format | Biome | one tool instead of ESLint plus Prettier |
-| Bundling | esbuild or tsup to one file per package | simple deployment |
-| Packaging | nfpm to build `.deb`, bundling the Node binary under `/opt/ohr` | no dependency on the distro's Node version |
-| Docs | Starlight (Astro) later | |
+| Concern          | Choice                                                          | Why                                                         |
+| ---------------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
+| Runtime          | Node.js current LTS (26 at time of writing)                     | ESM, stable `fetch`, good child process APIs                |
+| Language         | TypeScript strict mode                                          | catches whole classes of bugs before they reach a drive     |
+| Package manager  | pnpm workspaces                                                 | fast, strict dependency isolation                           |
+| Validation       | zod                                                             | one schema per API shape, shared between core, web, ui, cli |
+| HTTP server      | Fastify                                                         | fast, typed, first-class schema validation, SSE is easy     |
+| Process spawning | execa with argument arrays, never a shell string                | removes injection risk entirely                             |
+| Database         | SQLite via better-sqlite3                                       | zero ops, single file, transactional                        |
+| UI               | React, Vite, Tailwind, TanStack Query                           | standard, fast to build, easy for contributors              |
+| Testing          | Vitest, fast-check for property tests, Playwright for e2e       |                                                             |
+| Lint and format  | Biome                                                           | one tool instead of ESLint plus Prettier                    |
+| Bundling         | esbuild or tsup to one file per package                         | simple deployment                                           |
+| Packaging        | nfpm to build `.deb`, bundling the Node binary under `/opt/ohr` | no dependency on the distro's Node version                  |
+| Docs             | Starlight (Astro) later                                         |                                                             |
 
 ### 5.4 Core daemon internals
 
@@ -414,17 +414,17 @@ open-hr/
 
 REST under `/api/v1`, JSON everywhere, zod-validated on both ends.
 
-| Resource | Endpoints |
-|---|---|
-| Auth | `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
-| Drives | `GET /drives`, `GET /drives/:id`, `POST /drives/:id/smart-test`, `POST /drives/:id/wipe` |
-| Pools | `GET /pools`, `POST /pools` (create), `GET /pools/:id`, `POST /pools/:id/plan` (preview add or replace), `POST /pools/:id/add-drive`, `POST /pools/:id/replace-drive`, `POST /pools/:id/spares`, `DELETE /pools/:id/spares/:driveId`, `POST /pools/:id/scrub`, `DELETE /pools/:id` |
-| Volumes | `GET /pools/:id/volumes`, `POST /pools/:id/volumes`, `PATCH /volumes/:id`, `POST /volumes/:id/unlock`, `POST /volumes/:id/cache`, `DELETE /volumes/:id/cache`, `DELETE /volumes/:id` |
-| Snapshots | `GET /volumes/:id/snapshots`, `POST /volumes/:id/snapshots`, `DELETE /snapshots/:id`, `PUT /volumes/:id/snapshot-schedule` |
-| Jobs | `GET /jobs`, `GET /jobs/:id`, `POST /jobs/:id/cancel` (only for steps that are safe to cancel) |
-| Events | `GET /events` (SSE stream of state changes, job progress, alerts) |
-| Settings | `GET/PUT /settings/webhook`, `POST /settings/webhook/test`, `GET/PUT /settings/schedules` |
-| System | `GET /system` (version, kernel, tool versions, dependency check) |
+| Resource  | Endpoints                                                                                                                                                                                                                                                                          |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth      | `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`                                                                                                                                                                                                                            |
+| Drives    | `GET /drives`, `GET /drives/:id`, `POST /drives/:id/smart-test`, `POST /drives/:id/wipe`                                                                                                                                                                                           |
+| Pools     | `GET /pools`, `POST /pools` (create), `GET /pools/:id`, `POST /pools/:id/plan` (preview add or replace), `POST /pools/:id/add-drive`, `POST /pools/:id/replace-drive`, `POST /pools/:id/spares`, `DELETE /pools/:id/spares/:driveId`, `POST /pools/:id/scrub`, `DELETE /pools/:id` |
+| Volumes   | `GET /pools/:id/volumes`, `POST /pools/:id/volumes`, `PATCH /volumes/:id`, `POST /volumes/:id/unlock`, `POST /volumes/:id/cache`, `DELETE /volumes/:id/cache`, `DELETE /volumes/:id`                                                                                               |
+| Snapshots | `GET /volumes/:id/snapshots`, `POST /volumes/:id/snapshots`, `DELETE /snapshots/:id`, `PUT /volumes/:id/snapshot-schedule`                                                                                                                                                         |
+| Jobs      | `GET /jobs`, `GET /jobs/:id`, `POST /jobs/:id/cancel` (only for steps that are safe to cancel)                                                                                                                                                                                     |
+| Events    | `GET /events` (SSE stream of state changes, job progress, alerts)                                                                                                                                                                                                                  |
+| Settings  | `GET/PUT /settings/webhook`, `POST /settings/webhook/test`, `GET/PUT /settings/schedules`                                                                                                                                                                                          |
+| System    | `GET /system` (version, kernel, tool versions, dependency check)                                                                                                                                                                                                                   |
 
 Authentication: one admin account created at first run via a token printed
 by the installer. Password hashed with argon2. Session cookie, `HttpOnly`,
@@ -737,18 +737,18 @@ opt-in anonymous telemetry, other distributions, ARM boards.
 
 ## 12. Risks and mitigations
 
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Bug destroys user data | Project is dead | Safety model (section 6), loop-device integration tests, failure injection, pre-1.0 warnings, release gating |
-| mdadm reshape edge cases on old kernels | Stuck or failed expansion | Support only Debian 12 and 13 kernels, test each, require `--backup-file` where the kernel needs it, document kernel minimums |
-| Developer's lack of storage experience | Wrong assumptions baked in | Learning path first, hand-built SHR before code, planner reviewed against the Synology calculator, ask for review on r/DataHoarder |
-| Solo developer burnout or abandonment | Users stranded | Standard on-disk layout means pools work without Open HR; recovery docs from day one |
-| Running a Node process as root | Security exposure | Privilege separation, unix socket with group permissions, zod validation, no shell strings, minimal dependency tree audited in CI |
-| Node runtime version drift on Debian | Breakage on upgrade | Bundle the Node binary in the `.deb` |
-| Proxmox kernel or LVM config differences | Pool not assembling | Nightly Proxmox VM tests, explicit VG naming, documented `lvm.conf` interactions |
-| Scope creep toward a full NAS OS | Never ships | Non-goals list, roadmap gates |
-| Drive replacement with a slightly smaller "same size" drive | Replacement refused | 64 MiB end-of-drive reserve in the planner |
-| Reshape takes days and the user reboots | Confusion, risk | Kernel resumes reshape on its own; daemon re-attaches; UI explains clearly |
+| Risk                                                        | Impact                     | Mitigation                                                                                                                         |
+| ----------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Bug destroys user data                                      | Project is dead            | Safety model (section 6), loop-device integration tests, failure injection, pre-1.0 warnings, release gating                       |
+| mdadm reshape edge cases on old kernels                     | Stuck or failed expansion  | Support only Debian 12 and 13 kernels, test each, require `--backup-file` where the kernel needs it, document kernel minimums      |
+| Developer's lack of storage experience                      | Wrong assumptions baked in | Learning path first, hand-built SHR before code, planner reviewed against the Synology calculator, ask for review on r/DataHoarder |
+| Solo developer burnout or abandonment                       | Users stranded             | Standard on-disk layout means pools work without Open HR; recovery docs from day one                                               |
+| Running a Node process as root                              | Security exposure          | Privilege separation, unix socket with group permissions, zod validation, no shell strings, minimal dependency tree audited in CI  |
+| Node runtime version drift on Debian                        | Breakage on upgrade        | Bundle the Node binary in the `.deb`                                                                                               |
+| Proxmox kernel or LVM config differences                    | Pool not assembling        | Nightly Proxmox VM tests, explicit VG naming, documented `lvm.conf` interactions                                                   |
+| Scope creep toward a full NAS OS                            | Never ships                | Non-goals list, roadmap gates                                                                                                      |
+| Drive replacement with a slightly smaller "same size" drive | Replacement refused        | 64 MiB end-of-drive reserve in the planner                                                                                         |
+| Reshape takes days and the user reboots                     | Confusion, risk            | Kernel resumes reshape on its own; daemon re-attaches; UI explains clearly                                                         |
 
 ---
 
@@ -777,15 +777,15 @@ For a quick check of what the planner should produce:
 
 Examples (TB):
 
-| Drives | SHR-1 | SHR-2 |
-|---|---|---|
-| 4, 4 | 4 | not allowed |
-| 4, 8 | 4 | not allowed |
-| 4, 8, 8 | 12 | not allowed |
-| 4, 8, 8, 12 | 20 | 12 |
-| 4, 8, 12, 12 | 24 | 12 |
-| 8, 8, 8, 8 | 24 | 16 |
-| 2, 4, 6, 8, 10 | 20 | 12 |
+| Drives         | SHR-1 | SHR-2       |
+| -------------- | ----- | ----------- |
+| 4, 4           | 4     | not allowed |
+| 4, 8           | 4     | not allowed |
+| 4, 8, 8        | 12    | not allowed |
+| 4, 8, 8, 12    | 20    | 12          |
+| 4, 8, 12, 12   | 24    | 12          |
+| 8, 8, 8, 8     | 24    | 16          |
+| 2, 4, 6, 8, 10 | 20    | 12          |
 
 ## Appendix B. Command walkthrough for the worked example
 

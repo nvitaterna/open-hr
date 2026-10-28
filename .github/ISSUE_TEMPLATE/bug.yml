@@ -1,0 +1,36 @@
+name: Bug report
+description: Something does not work as expected.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or support bundle
+      description: Output of `ohr support-bundle` once it exists, or relevant `journalctl -u ohr-core` lines.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Open HR version
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and version
+      placeholder: Debian 13, Proxmox VE 9.1, ...
+    validations:
+      required: true
