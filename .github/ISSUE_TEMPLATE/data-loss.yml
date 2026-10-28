@@ -1,0 +1,39 @@
+name: Data loss or corruption
+description: You lost data, or think Open HR put your data at risk. These are handled first.
+title: "[data loss] "
+labels: ["data-loss", "priority"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Stop and do not run any more commands on the affected drives.** Further
+        writes can make recovery harder. Pools built by Open HR use standard mdadm
+        and LVM, so they can usually be recovered with plain Linux tools.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: bundle
+    attributes:
+      label: Support bundle or system state
+      description: Output of `ohr support-bundle` once it exists. Until then, paste `cat /proc/mdstat`, `lsblk`, and `sudo mdadm --detail --scan`.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Open HR version
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and version
+      placeholder: Debian 13, Proxmox VE 9.1, ...
+    validations:
+      required: true
