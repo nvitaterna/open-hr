@@ -23,7 +23,7 @@ These came out of the planning conversation and are fixed unless revisited on pu
 | Product | Userspace tool reproducing the SHR layout on stock Linux. No kernel code. |
 | Redundancy | SHR-1 (survives one drive failure) and SHR-2 (survives two). |
 | Lifecycle | Online expansion by adding a drive and by replacing a drive with a larger one. |
-| Resilience | Hot spares, scheduled scrubbing, rebuild monitoring, email and webhook alerts. |
+| Resilience | Hot spares, scheduled scrubbing, rebuild monitoring, webhook alerts. |
 | Filesystems | User chooses btrfs or ext4 per volume. Both supported. |
 | Extras | Snapshots, encryption, SSD cache. |
 | Platforms | Debian (12 and 13) and Proxmox VE (8 and 9). Manages data drives only, never the boot drive. Unraid is out of scope. |
@@ -37,8 +37,9 @@ These came out of the planning conversation and are fixed unless revisited on pu
 | Dates | None for now. Milestones are ordered and sized, not scheduled. |
 | Docs hosting | GitHub Pages for the documentation site and the apt repository. |
 | Defaults | Web UI on port 7700, volumes mounted under `/mnt/ohr`. |
-| Alerts | Webhook first, with presets for ntfy, Discord, and Telegram. Email via SMTP kept but second priority. |
-| Telemetry | Opt-in only, off by default, anonymous, documented in full. See section 5.7. |
+| Alerts | One generic webhook that posts a JSON body. No email, no service-specific presets. |
+| Telemetry | None in version 1. Deferred to version 2, opt-in only if it ever ships. |
+| Minimum drives | Two for SHR-1, four for SHR-2. No single-drive pools. |
 
 ---
 
@@ -139,7 +140,7 @@ large arrives, at which point tier 3 becomes a RAID1 of two members.
 | SHR-2 | 3 | RAID1 with 3 copies | 1 x slice |
 | SHR-2 | 4 or more | RAID6 | (n minus 2) x slice |
 
-Minimum drives: 2 for SHR-1, 4 for SHR-2. These rules reproduce the published
+Minimum drives: 2 for SHR-1, 4 for SHR-2. Single-drive pools are refused. These rules reproduce the published
 Synology capacity results for every combination checked by hand, but exact
 agreement is not a requirement since there is no compatibility goal.
 
@@ -400,11 +401,11 @@ open-hr/
   log lines stream to the UI over SSE.
 - **Monitor.** Watches `/proc/mdstat`, udev, SMART, filesystem errors, and
   disk space. Produces events. Events feed health state and alerts.
-- **Alerts.** Generic webhook with a JSON body, plus one-click presets that
-  format the payload for ntfy, Discord, and Telegram. Email via SMTP
-  (nodemailer) is included because a failed drive is the one alert every
-  home user must receive and not everyone runs a webhook service; it is a
-  small addition and ships in the same milestone, after webhooks. Alert rules: drive failed, array degraded, rebuild started and finished,
+- **Alerts.** One generic outgoing webhook: an HTTPS POST with a documented
+  JSON body (event type, severity, pool, drive, message, timestamp) and an
+  optional shared secret header. Users point it at ntfy, Discord, Home
+  Assistant, or anything else that accepts a POST. A "send test" button
+  verifies the setup. Alert rules: drive failed, array degraded, rebuild started and finished,
   scrub found errors, SMART warning, volume above 90 percent full, job failed.
 - **Scheduler.** Cron-like schedules stored in SQLite for scrubs, SMART tests,
   and snapshots.
@@ -422,7 +423,7 @@ REST under `/api/v1`, JSON everywhere, zod-validated on both ends.
 | Snapshots | `GET /volumes/:id/snapshots`, `POST /volumes/:id/snapshots`, `DELETE /snapshots/:id`, `PUT /volumes/:id/snapshot-schedule` |
 | Jobs | `GET /jobs`, `GET /jobs/:id`, `POST /jobs/:id/cancel` (only for steps that are safe to cancel) |
 | Events | `GET /events` (SSE stream of state changes, job progress, alerts) |
-| Settings | `GET/PUT /settings/alerts`, `GET/PUT /settings/schedules`, `POST /settings/alerts/test` |
+| Settings | `GET/PUT /settings/webhook`, `POST /settings/webhook/test`, `GET/PUT /settings/schedules` |
 | System | `GET /system` (version, kernel, tool versions, dependency check) |
 
 Authentication: one admin account created at first run via a token printed
@@ -448,7 +449,7 @@ Pages:
    snapshots tab.
 5. **Jobs.** Running and past jobs with step-by-step progress, ETA from
    `/proc/mdstat` speed, full log.
-6. **Settings.** Alerts, schedules, account, certificate, backup and restore of
+6. **Settings.** Webhook, schedules, account, certificate, backup and restore of
    the Open HR configuration database.
 7. **Wizards.** Create pool and add drive are multi-step with a preview page
    that shows the before-and-after capacity and the exact commands that will
@@ -456,33 +457,6 @@ Pages:
 
 Dark mode, keyboard accessible, works on a phone because home users will check
 rebuild progress from the couch.
-
-### 5.7 Telemetry (opt-in)
-
-Off by default. The first-run setup page asks once, with the full list of
-fields shown on screen, and the answer can be changed in Settings at any
-time. The exact payload is documented in the public docs and can be
-previewed in the UI before enabling.
-
-What is sent, once a week, as one JSON document:
-
-- A random install id generated locally, so installs can be counted without
-  identifying anyone. Regenerated if the user turns telemetry off and on.
-- Open HR version, Debian or Proxmox version, kernel version, CPU architecture.
-- Pool shape: redundancy level, number of drives, drive size buckets (for
-  example "4 TB", "8 TB"), tier count, filesystem choice, whether
-  encryption, cache, snapshots, or spares are in use.
-- Counts of jobs run by type and whether they succeeded.
-- Counts of alerts by type.
-
-What is never sent: serial numbers, hostnames, IP addresses, mount paths,
-volume names, file names, SMART raw data, email addresses, or anything
-typed by the user.
-
-The receiving endpoint is a small, open source collector in a separate
-repository so people can read what it stores. Aggregate numbers are
-published on the docs site. The payload schema lives in `shared` with a
-test that fails if any field outside the allowlist is added.
 
 ---
 
@@ -694,7 +668,7 @@ is green.
 ### M5. Resilience (M)
 
 - SHR-2. Hot spares. Scheduled md and btrfs scrubs. SMART polling and tests.
-- Monitor and health states. Webhook alerts with presets, then SMTP email.
+- Monitor and health states. Generic webhook alerts with a test button.
 - Failure-injection tests with `dm-flakey`.
 - Done when: pulling a drive from the VM produces an alert, a rebuild onto
   the spare, and a second alert on completion, with no user action.
@@ -711,16 +685,16 @@ is green.
 - Recovery documentation with a live-USB walkthrough, tested by following it.
 - Config backup and restore. Upgrade testing from 0.x.
 - Accessibility pass, mobile layout, dark mode.
-- Docs site on GitHub Pages. Opt-in telemetry and its collector. Release
-  automation. Manual checklist on physical hardware.
+- Docs site on GitHub Pages. Release automation. Manual checklist on
+  physical hardware.
 - Done when: the release checklist is signed off and the developer would
   put their own data on it.
 
 ### Later (not scheduled)
 
 Docker image, Samba and NFS sharing, shrink by drive removal, LVM thin
-snapshots for ext4, multi-user roles, Prometheus metrics, other distributions,
-ARM boards.
+snapshots for ext4, multi-user roles, Prometheus metrics, email alerts,
+opt-in anonymous telemetry, other distributions, ARM boards.
 
 ---
 
@@ -780,18 +754,13 @@ ARM boards.
 
 ## 13. Open items
 
-Resolved in planning: no dates for now, GitHub Pages for docs and the apt
-repository, port 7700 and `/mnt/ohr`, webhook-first alerts with SMTP email
-kept, opt-in telemetry, public name "Open Hybrid RAID" with `ohr` as the
-short form.
+All planning questions are resolved: no dates for now, GitHub Pages for docs
+and the apt repository, port 7700 and `/mnt/ohr`, one generic webhook for
+alerts, no telemetry in version 1, two drives minimum for SHR-1, public name
+"Open Hybrid RAID" with `ohr` as the short form.
 
-Still open:
-
-1. **Minimum drive count for SHR-1.** Synology allows a single drive with no
-   redundancy. The plan requires two. Confirm, or allow one with a loud
-   "no redundancy" warning.
-2. **Telemetry collector hosting.** The plan proposes a separate open source
-   repository with a small service. Where it runs is undecided.
+New questions go in `docs/decisions/` as short architecture decision records
+once development starts.
 
 ---
 
