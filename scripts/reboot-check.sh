@@ -24,8 +24,32 @@ MOUNT=/mnt/ohr/$VOLUME
 MOUNT_UNIT=mnt-ohr-$VOLUME.mount
 SIZES_GIB=(2 4 4)
 REPO=$(cd "$(dirname "$0")/.." && pwd)
-OHR=(node "$REPO/packages/cli/dist/bin.js")
+SOCKET=$DIR/core.sock
+OHR=(node "$REPO/packages/cli/dist/bin.js" --socket "$SOCKET")
 FAILED=0
+CORE_PID=
+
+# A private ohr-core on its own socket and database, so an installed one is never touched.
+start_core() {
+  node "$REPO/packages/core/dist/daemon/main.js" --socket "$SOCKET" --database "$DIR/ohr.db" \
+    --group "" --allow-loop >>"$DIR/core.log" 2>&1 &
+  CORE_PID=$!
+  for _ in $(seq 50); do
+    [ -S "$SOCKET" ] && return 0
+    sleep 0.2
+  done
+  echo "ohr-core did not start; see $DIR/core.log" >&2
+  exit 1
+}
+
+stop_core() {
+  if [ -n "$CORE_PID" ]; then
+    kill "$CORE_PID" 2>/dev/null || true
+    wait "$CORE_PID" 2>/dev/null || true
+    CORE_PID=
+  fi
+}
+trap stop_core EXIT
 
 loops() {
   for file in "$DIR"/drive*.img; do
@@ -66,17 +90,19 @@ ExecStart=/bin/sh -c 'for file in $DIR/drive*.img; do losetup --find --partscan 
 WantedBy=local-fs.target
 UNIT
   systemctl daemon-reload
-  systemctl enable --now "$LOOP_UNIT"
+  systemctl enable "$LOOP_UNIT"
+  # restart, not --now: a oneshot left active by an earlier run would not run again.
+  systemctl restart "$LOOP_UNIT"
   udevadm settle
   echo "Attached: $(loops | tr '\n' ' ')"
 }
 
 create() {
   mapfile -t devices < <(loops)
-  printf '%s\n' "$POOL" | "${OHR[@]}" pool create --id "$POOL" --redundancy shr1 --allow-loop \
-    --database "$DIR/ohr.db" "${devices[@]}"
-  printf '%s\n' "$VOLUME" | "${OHR[@]}" volume create --pool "$POOL" --name "$VOLUME" --fs btrfs \
-    --database "$DIR/ohr.db"
+  start_core
+  printf '%s\n' "$POOL" | "${OHR[@]}" pool create --id "$POOL" --redundancy shr1 "${devices[@]}"
+  printf '%s\n' "$VOLUME" | "${OHR[@]}" volume create --pool "$POOL" --name "$VOLUME" --fs btrfs
+  stop_core
   head --bytes 64M /dev/urandom >"$MOUNT/test.bin"
   sync
   (cd "$MOUNT" && sha256sum test.bin) >"$DIR/test.sha256"
@@ -92,7 +118,9 @@ verify() {
   check "$MOUNT is the @data subvolume" sh -c "findmnt --noheadings --output OPTIONS $MOUNT | grep -q 'subvol=/@data'"
   check "test file intact" sh -c "cd $MOUNT && sha256sum --check --quiet $DIR/test.sha256"
   echo
+  start_core
   "${OHR[@]}" status
+  stop_core
   return "$FAILED"
 }
 
@@ -109,7 +137,7 @@ cleanup() {
   if [ -d "$DIR" ]; then
     loops | xargs --no-run-if-empty losetup --detach
   fi
-  systemctl disable "$LOOP_UNIT" 2>/dev/null || true
+  systemctl disable --now "$LOOP_UNIT" 2>/dev/null || true
   rm -f "/etc/systemd/system/$LOOP_UNIT"
   systemctl daemon-reload
   rm -rf "$DIR"

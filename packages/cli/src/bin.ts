@@ -2,8 +2,7 @@
 import process from 'node:process';
 import { createInterface } from 'node:readline/promises';
 
-import { runCommand } from '@ohr/core/command-runner';
-import { readTextFile } from '@ohr/core/file-reader';
+import { RpcClient } from '@ohr/rpc/client';
 
 import { run } from './run.ts';
 
@@ -18,8 +17,13 @@ process.stdout.on('error', (error: NodeJS.ErrnoException) => {
 process.exitCode = await run(process.argv.slice(2), {
   stdout: (line) => process.stdout.write(`${line}\n`),
   stderr: (line) => process.stderr.write(`${line}\n`),
-  run: runCommand,
-  readFile: readTextFile,
+  connect: (path) => RpcClient.connect(path),
+  onInterrupt: (handler) => {
+    process.on('SIGINT', handler);
+    return () => {
+      process.off('SIGINT', handler);
+    };
+  },
   confirm: async (question) => {
     const terminal = createInterface({ input: process.stdin, output: process.stdout });
     try {
@@ -28,5 +32,4 @@ process.exitCode = await run(process.argv.slice(2), {
       terminal.close();
     }
   },
-  isRoot: () => process.getuid?.() === 0,
 });

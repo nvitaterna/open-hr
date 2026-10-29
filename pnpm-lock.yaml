@@ -196,13 +196,16 @@ importers:
 
   packages/cli:
     dependencies:
-      '@ohr/core':
+      '@ohr/rpc':
         specifier: workspace:*
-        version: link:../core
+        version: link:../rpc
       '@ohr/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
+      '@ohr/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5

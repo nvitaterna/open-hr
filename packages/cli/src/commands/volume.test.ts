@@ -20,14 +20,13 @@ describe('ohr volume create', () => {
     expect((await runCli(['volume', 'create', '--pool', 'p2', '--name', 'media'])).code).toBe(2);
     expect((await runCli([...CREATE, '--size', '100'])).code).toBe(2);
     expect((await runCli([...CREATE, '--size', '1MB'])).code).toBe(2);
-    expect((await runCli([...CREATE, '--mount', 'media'])).code).toBe(2);
     expect((await runCli(['volume', 'delete'])).code).toBe(2);
   });
 
-  it('needs root', async () => {
-    const result = await runCli(CREATE, poolMachine(), new Map(), { isRoot: false });
+  it("passes on core's refusal of a relative mount point", async () => {
+    const result = await runCli([...CREATE, '--mount', 'media'], poolMachine());
     expect(result.code).toBe(1);
-    expect(result.stderr).toContain('needs root');
+    expect(result.stderr).toBe('The mount point must be an absolute directory path, got "media".');
   });
 
   it('refuses a missing pool, a name in use, no free space, and a busy mount point', async () => {

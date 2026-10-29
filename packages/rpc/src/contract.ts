@@ -73,8 +73,12 @@ export const rpcErrorCodeSchema = z.enum(RPC_ERROR_CODES);
 export type RpcErrorCode = z.infer<typeof rpcErrorCodeSchema>;
 
 export const methods = {
+  /**
+   * The cached snapshot. With `smart`, a fresh read that includes SMART data,
+   * which is slower and not cached.
+   */
   'system.state': {
-    params: noParams,
+    params: z.strictObject({ smart: z.boolean().optional() }),
     result: cachedStateSchema,
   },
   /** Every pool on the machine, derived from the cached snapshot. */
@@ -131,6 +135,16 @@ export const methods = {
    */
   'jobs.submit': {
     params: jobSubmissionSchema,
+    result: z.strictObject({ job: jobRecordSchema }),
+  },
+  /**
+   * Runs a failed job again from its failed step. Steps that already did
+   * their work are skipped by their preconditions. `conflict` if the pool has
+   * an unfinished job, `rejected` if the job did not fail or a newer job for
+   * the pool exists.
+   */
+  'jobs.retry': {
+    params: z.strictObject({ id: z.uuid() }),
     result: z.strictObject({ job: jobRecordSchema }),
   },
   /**

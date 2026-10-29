@@ -57,6 +57,8 @@ describe('ohr status', () => {
     answers.set('lsblk', { kind: 'exited', exitCode: 32, stdout: '', stderr: 'lsblk: failed' });
     const result = await runCli(['status'], answers);
     expect(result.code).toBe(1);
-    expect(result.stderr).toBe('Error: lsblk exited with code 32: lsblk: failed');
+    expect(result.stderr).toBe(
+      'Reading the system failed: lsblk exited with code 32: lsblk: failed',
+    );
   });
 });

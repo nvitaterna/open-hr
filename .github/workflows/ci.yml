@@ -28,11 +28,17 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:coverage
       - run: pnpm build
-      - name: Smoke test the CLI
+      - name: Smoke test ohr-core and the CLI
         run: |
+          socket="$RUNNER_TEMP/core.sock"
+          node packages/core/dist/daemon/main.js --socket "$socket" --database "$RUNNER_TEMP/ohr.db" --group "" &
+          core=$!
+          for _ in $(seq 50); do [ -S "$socket" ] && break; sleep 0.2; done
           node packages/cli/dist/bin.js version
           node packages/cli/dist/bin.js plan --redundancy shr1 --sizes 4TB,8TB,8TB
-          node packages/cli/dist/bin.js status
+          node packages/cli/dist/bin.js --socket "$socket" status
+          node packages/cli/dist/bin.js --socket "$socket" job list
+          kill "$core"
 
   integration:
     name: Integration tests on loop devices

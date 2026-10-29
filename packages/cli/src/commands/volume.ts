@@ -1,33 +1,27 @@
 import { parseArgs } from 'node:util';
 
-import { assertMountPoint, defaultMountPoint } from '@ohr/core/executors/mount';
-import { buildVolumeCreateJob } from '@ohr/core/jobs/volume-create';
-import { previewVolumeCreate, volumeSizeBytes } from '@ohr/core/jobs/volume-create-preview';
-import { readSystemState } from '@ohr/core/system-state';
 import {
-  DEFAULT_DATABASE_PATH,
+  DEFAULT_MOUNT_ROOT,
   FILESYSTEMS,
   type FilesystemType,
   LVM_EXTENT_BYTES,
 } from '@ohr/shared/constants';
 import { isValidPoolId } from '@ohr/shared/naming';
 import { alignDown, formatSize, parseSize, SizeParseError } from '@ohr/shared/sizes';
-import type { SystemSnapshot } from '@ohr/shared/system-snapshot';
-import type { VolumeCreateInput } from '@ohr/shared/volume-create-input';
 import type { VolumeCreateRequest } from '@ohr/shared/volume-create-request';
 import { isValidVolumeName } from '@ohr/shared/volume-name';
 
 import { EXIT_FAILURE, type Io, UsageError } from '../io.ts';
-import { confirmed, printSteps, runConfirmedJob } from '../jobs.ts';
+import { confirmed, followJob, printSteps } from '../jobs.ts';
 
 interface CreateOptions {
   readonly poolId: string;
   readonly name: string;
   readonly filesystem: FilesystemType;
   readonly sizeBytes: number | null;
-  readonly mountPoint: string;
+  /** Null lets core choose the default under /mnt/ohr. */
+  readonly mountPoint: string | null;
   readonly yes: boolean;
-  readonly database: string;
 }
 
 function parseFilesystem(value: string | undefined): FilesystemType {
@@ -69,7 +63,6 @@ function parseCreateOptions(args: readonly string[]): CreateOptions {
       size: { type: 'string' },
       mount: { type: 'string' },
       yes: { type: 'boolean', default: false },
-      database: { type: 'string', default: DEFAULT_DATABASE_PATH },
     },
     strict: true,
     allowPositionals: false,
@@ -85,81 +78,62 @@ function parseCreateOptions(args: readonly string[]): CreateOptions {
       'Name the volume with --name: 1 to 32 lowercase letters, digits, dashes, or underscores.',
     );
   }
-  const mountPoint = values.mount ?? defaultMountPoint(values.name);
-  try {
-    assertMountPoint(mountPoint);
-  } catch (error) {
-    throw new UsageError(`--mount must be an absolute directory path, got "${mountPoint}".`, {
-      cause: error,
-    });
-  }
   return {
     poolId: values.pool,
     name: values.name,
     filesystem: parseFilesystem(values.fs),
     sizeBytes: parseVolumeSize(values.size),
-    mountPoint,
+    mountPoint: values.mount ?? null,
     yes: values.yes,
-    database: values.database,
   };
 }
 
-function describeSize(input: VolumeCreateInput, snapshot: SystemSnapshot): string {
-  const bytes = formatSize(volumeSizeBytes(input, snapshot));
-  if (input.size.kind === 'bytes') {
-    return bytes;
-  }
-  return `all free space (${bytes})`;
-}
-
-async function createVolume(args: readonly string[], io: Io): Promise<number> {
-  const options = parseCreateOptions(args);
-  if (!io.isRoot()) {
-    io.stderr('Creating a volume changes the pool, so it needs root. Run with sudo.');
-    return EXIT_FAILURE;
-  }
-  const snapshot = await readSystemState({
-    run: io.run,
-    readFile: io.readFile,
-    includeSmart: false,
-  });
+function request(options: CreateOptions): VolumeCreateRequest {
   let size: VolumeCreateRequest['size'] = { kind: 'all-free' };
   if (options.sizeBytes !== null) {
     size = { kind: 'bytes', bytes: options.sizeBytes };
   }
-  const preview = previewVolumeCreate(
-    {
-      poolId: options.poolId,
-      name: options.name,
-      filesystem: options.filesystem,
-      size,
-      mountPoint: options.mountPoint,
-    },
-    snapshot,
-  );
-  if (!preview.ok) {
-    for (const reason of preview.reasons) {
-      io.stderr(reason);
-    }
-    return EXIT_FAILURE;
+  const base = {
+    poolId: options.poolId,
+    name: options.name,
+    filesystem: options.filesystem,
+    size,
+  };
+  if (options.mountPoint === null) {
+    return base;
   }
-  const input = preview.value;
-  const definition = buildVolumeCreateJob(input);
+  return { ...base, mountPoint: options.mountPoint };
+}
+
+async function createVolume(args: readonly string[], io: Io): Promise<number> {
+  const options = parseCreateOptions(args);
+  const core = await io.core();
+  const preview = await core.call('volumes.previewCreate', request(options));
+  const { input } = preview;
+  let size = formatSize(preview.sizeBytes);
+  if (input.size.kind === 'all-free') {
+    size = `all free space (${size})`;
+  }
   io.stdout(`Volume ${input.name} in pool ${input.poolId}`);
   io.stdout(`  Filesystem: ${input.filesystem}`);
-  io.stdout(`  Size: ${describeSize(input, snapshot)}`);
+  io.stdout(`  Size: ${size}`);
   io.stdout(`  Mount point: ${input.mountPoint}`);
   io.stdout('');
-  printSteps(io, definition);
+  printSteps(io, preview.steps);
   io.stdout('');
   if (!(await confirmed(io, 'volume name', input.name, options.yes))) {
     return EXIT_FAILURE;
   }
-  return runConfirmedJob(io, {
-    definition,
-    snapshot,
-    database: options.database,
+  return followJob(io, {
     subject: `Volume ${input.name}`,
+    start: async (client) =>
+      (
+        await client.call('jobs.submit', {
+          kind: 'volume-create',
+          input,
+          stateHash: preview.stateHash,
+        })
+      ).job,
   });
 }
 
@@ -168,7 +142,8 @@ export const VOLUME_USAGE = `Usage: ohr volume create --pool <id> --name <name> 
 Creates a volume in a pool: a logical volume, a filesystem on it, and a
 systemd mount unit so it is mounted now and after every boot. Shows the
 steps and the exact commands first and asks for the volume name before
-writing anything. Needs root.
+writing anything. ohr-core runs the job; Ctrl-C stops following it but not
+the job.
 
 Options:
   --pool         The pool id.
@@ -177,9 +152,8 @@ Options:
   --fs           btrfs or ext4.
   --size         Size with a unit, such as 500GB or 2TiB, rounded down to whole
                  4 MiB extents. Without it the volume takes all free space.
-  --mount        Mount point. Default ${'/mnt/ohr/<name>'}.
-  --yes          Skip the confirmation.
-  --database     Job database path, for testing. Default ${DEFAULT_DATABASE_PATH}.`;
+  --mount        Mount point. Default ${DEFAULT_MOUNT_ROOT}/<name>.
+  --yes          Skip the confirmation.`;
 
 export function volumeCommand(args: readonly string[], io: Io): Promise<number> {
   const [subcommand, ...rest] = args;

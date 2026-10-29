@@ -1,10 +1,15 @@
 /** A fake terminal and machine for CLI tests. Not part of the package API. */
 
 import { readFileSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import type { CommandResult } from '@ohr/core/command-runner';
+import { type Daemon, startDaemon } from '@ohr/core/daemon/daemon';
+import { RpcClient } from '@ohr/rpc/client';
 
-import type { Io } from './io.ts';
+import type { Environment } from './io.ts';
 import { run } from './run.ts';
 
 const FIXTURES = new URL('../../shared/fixtures/', import.meta.url);
@@ -47,10 +52,45 @@ function emptyDisk(name: string, sizeBytes: number, serial: string): string {
   });
 }
 
+/** ohr-core on the fake machine, or null when the test wants it stopped. */
+function startCore(
+  socket: string,
+  answers: ReadonlyMap<string, CommandResult>,
+  files: ReadonlyMap<string, string>,
+  options: CliOptions,
+): Promise<Daemon | null> {
+  if (options.coreStopped === true) {
+    return Promise.resolve(null);
+  }
+  return startDaemon({
+    socketPath: socket,
+    databasePath: options.database ?? ':memory:',
+    socketGroup: null,
+    watch: null,
+    allowLoopDevices: options.allowLoop ?? false,
+    run: (command, commandArgs) =>
+      Promise.resolve(
+        answers.get(`${command} ${commandArgs.at(-1) ?? ''}`) ??
+          answers.get(command) ?? { kind: 'not-found' },
+      ),
+    readFile: (path) => Promise.resolve(files.get(path) ?? null),
+    labelIo: {
+      read: (path) => Promise.reject(new Error(`no label on ${path} in this test`)),
+      write: () => Promise.reject(new Error('read-only')),
+    },
+    log: () => undefined,
+  });
+}
+
 export interface CliOptions {
   /** What the fake user types at a confirmation prompt. */
   readonly answer?: string;
-  readonly isRoot?: boolean;
+  /** Start ohr-core with --allow-loop. */
+  readonly allowLoop?: boolean;
+  /** Leave ohr-core stopped, to see what the CLI says. */
+  readonly coreStopped?: boolean;
+  /** Job database, to share jobs between runs. Default: a fresh one in memory. */
+  readonly database?: string;
 }
 
 export interface CliResult {
@@ -131,30 +171,34 @@ export function poolMachine(): Map<string, CommandResult> {
   return answers;
 }
 
-/** Runs the CLI against a fake machine and captures its output. */
+/** Runs the CLI against ohr-core on a fake machine and captures its output. */
 export async function runCli(
   args: readonly string[],
   answers: ReadonlyMap<string, CommandResult> = exampleMachine(),
   files: ReadonlyMap<string, string> = exampleFiles(),
   options: CliOptions = {},
 ): Promise<CliResult> {
+  const directory = await mkdtemp(join(tmpdir(), 'ohr-cli-'));
+  const socket = join(directory, 'core.sock');
+  const daemon = await startCore(socket, answers, files, options);
   const stdout: string[] = [];
   const stderr: string[] = [];
-  const io: Io = {
+  const environment: Environment = {
     stdout: (line) => stdout.push(line),
     stderr: (line) => stderr.push(line),
-    run: (command, commandArgs) =>
-      Promise.resolve(
-        answers.get(`${command} ${commandArgs.at(-1) ?? ''}`) ??
-          answers.get(command) ?? { kind: 'not-found' },
-      ),
-    readFile: (path) => Promise.resolve(files.get(path) ?? null),
     confirm: (question) => {
       stdout.push(question);
       return Promise.resolve(options.answer ?? '');
     },
-    isRoot: () => options.isRoot ?? true,
+    connect: (path) => RpcClient.connect(path),
+    onInterrupt: () => () => undefined,
   };
-  const code = await run(args, io);
-  return { code, stdout: stdout.join('\n'), stderr: stderr.join('\n') };
+  try {
+    const code = await run(['--socket', socket, ...args], environment);
+    return { code, stdout: stdout.join('\n'), stderr: stderr.join('\n') };
+  } finally {
+    await daemon?.jobs.idle();
+    await daemon?.close();
+    await rm(directory, { recursive: true, force: true });
+  }
 }

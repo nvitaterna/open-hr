@@ -68,6 +68,7 @@ function defaultHandlers(): Handlers {
     'pools.previewCreate': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
     'volumes.previewCreate': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
     'jobs.submit': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
+    'jobs.retry': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
   };
 }
 
@@ -109,6 +110,7 @@ beforeEach(async () => {
       'pools.previewCreate': (params) => handlers['pools.previewCreate'](params),
       'volumes.previewCreate': (params) => handlers['volumes.previewCreate'](params),
       'jobs.submit': (params) => handlers['jobs.submit'](params),
+      'jobs.retry': (params) => handlers['jobs.retry'](params),
     },
     log: (line) => logged.push(line),
   });

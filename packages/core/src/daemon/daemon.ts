@@ -20,6 +20,7 @@ import {
 import type { BlockDeviceIo } from '../executors/label-partition.ts';
 import { type JobDeps, jobDefinition } from '../jobs/definitions.ts';
 import type { JobEvent } from '../jobs/engine.ts';
+import { systemStateHash } from '../jobs/state-hash.ts';
 import { JobStore } from '../jobs/store.ts';
 import { readSystemState } from '../system-state.ts';
 import { createHandlers } from './handlers.ts';
@@ -176,8 +177,11 @@ export async function startDaemon(options: DaemonOptions): Promise<Daemon> {
     },
     log: options.log,
   });
+  // A failed first read is not fatal: the daemon still listens, and callers get the error.
+  await state.refresh().catch((error: unknown) => {
+    options.log(`Reading the system state failed: ${errorText(error)}`);
+  });
   try {
-    await state.refresh();
     const gid = await resolveGroup(options);
     await prepareSocketPath(options.socketPath, gid);
     server = await RpcServer.listen(options.socketPath, {
@@ -186,6 +190,20 @@ export async function startDaemon(options: DaemonOptions): Promise<Daemon> {
         state,
         jobs,
         jobDeps,
+        readWithSmart: async () => {
+          const snapshot = await readSystemState({
+            run: options.run,
+            readFile: options.readFile,
+            includeSmart: true,
+            labelIo: options.labelIo,
+            includeLoopDevices: options.allowLoopDevices ?? false,
+          });
+          return {
+            snapshot,
+            readAt: new Date().toISOString(),
+            stateHash: systemStateHash(snapshot),
+          };
+        },
       }),
       log: options.log,
     });
