@@ -63,10 +63,13 @@ pre-release needs.
 ### Install script and releases
 
 - `install.sh` checks for Debian 12 or 13 (or Proxmox VE 8 or 9) on `amd64`,
-  downloads the `.deb` and its checksum from the latest GitHub release, checks
-  it, and installs it with `apt-get install ./open-hr_*.deb` so apt pulls the
-  dependencies. The apt repository on GitHub Pages moves to M7 with the rest
-  of the release automation.
+  downloads the `.deb` and its SHA-256 from the newest GitHub release, checks
+  it, and installs it with `apt-get install` so apt pulls the dependencies.
+  GitHub's "latest release" skips pre-releases, and every 0.x release is one,
+  so the script asks the API for the newest release of any kind, and the
+  README points at the copy on `main`. `OHR_VERSION` picks a given release.
+  The apt repository on GitHub Pages moves to M7 with the rest of the release
+  automation.
 - CI builds the package on every pull request, installs it on the runner,
   runs `deploy/smoke-test.sh` (services, HTTPS setup page, CLI, owners and
   modes), reinstalls it, removes it, and purges it.

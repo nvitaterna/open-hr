@@ -1,5 +1,5 @@
 import { RpcError } from '@ohr/rpc/rpc-error';
-import { CORE_SOCKET_PATH, PROJECT_NAME, SHORT_NAME } from '@ohr/shared/constants';
+import { CORE_SOCKET_PATH, PROJECT_NAME, SHORT_NAME, VERSION } from '@ohr/shared/constants';
 
 import { JOB_USAGE, jobCommand } from './commands/job.ts';
 import { PLAN_USAGE, planCommand } from './commands/plan.ts';
@@ -126,8 +126,6 @@ async function dispatch(args: readonly string[], io: Io): Promise<number> {
     return EXIT_FAILURE;
   }
 }
-
-export const VERSION = '0.0.0';
 
 /** Runs the CLI and returns the process exit code. */
 export async function run(args: readonly string[], environment: Environment): Promise<number> {

@@ -1,0 +1,74 @@
+name: Release
+
+# Pushing a tag such as v0.1.0 runs every CI job, then builds the .deb and
+# publishes a GitHub release with it, its SHA-256, and install.sh
+# (decision 0009). Every 0.x version, and any version with a pre-release part
+# such as v0.1.0-rc.1, is marked as a pre-release.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Build and publish
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Check the tag matches the version
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version."
+            exit 1
+          fi
+          echo "VERSION=$version" >>"$GITHUB_ENV"
+      - name: Install nfpm
+        run: deploy/install-nfpm.sh
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm package
+      - name: Checksum
+        working-directory: deploy/out
+        run: sha256sum "open-hr_${VERSION}_amd64.deb" >"open-hr_${VERSION}_amd64.deb.sha256"
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=()
+          case "$VERSION" in
+            0.* | *-*) prerelease=(--prerelease) ;;
+          esac
+          cat >"$RUNNER_TEMP/notes.md" <<NOTES
+          > **Pre-release.** Do not trust Open HR with the only copy of your data.
+
+          Install or upgrade on Debian 12 or 13, or Proxmox VE 8 or 9, on amd64:
+
+          \`\`\`sh
+          curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/deploy/install.sh | sudo bash
+          \`\`\`
+
+          Or download the .deb below, check it against its .sha256, and run
+          \`sudo apt-get install ./open-hr_${VERSION}_amd64.deb\`.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Open HR $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --generate-notes \
+            "${prerelease[@]}" \
+            "deploy/out/open-hr_${VERSION}_amd64.deb" \
+            "deploy/out/open-hr_${VERSION}_amd64.deb.sha256" \
+            deploy/install.sh
