@@ -18,7 +18,15 @@ import { singleRow } from './single-row.ts';
 const MOUNT_TIMEOUT_MS = 60_000;
 const ROOT = '/';
 
-function assertMountPoint(path: string): void {
+export interface MountRequest {
+  /** Device path of the logical volume. */
+  readonly device: string;
+  readonly type: FilesystemType;
+  readonly mountPoint: string;
+}
+
+/** Throws unless `path` is an absolute, normalized directory path other than the root. */
+export function assertMountPoint(path: string): void {
   if (
     !posix.isAbsolute(path) ||
     posix.normalize(path) !== path ||
@@ -27,13 +35,6 @@ function assertMountPoint(path: string): void {
   ) {
     throw new RangeError(`Mount point must be a normalized absolute directory path, got "${path}"`);
   }
-}
-
-export interface MountRequest {
-  /** Device path of the logical volume. */
-  readonly device: string;
-  readonly type: FilesystemType;
-  readonly mountPoint: string;
 }
 
 /** Where a volume is mounted unless the user chooses otherwise. */

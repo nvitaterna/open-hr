@@ -298,10 +298,12 @@ LVM thin snapshots for ext4 are a possible later addition.
 
 ### 4.9 Boot-time assembly and mounting
 
-md arrays assemble on boot via udev and `/etc/mdadm/mdadm.conf`, which Open HR
-keeps updated (followed by `update-initramfs -u` on Debian so names stay stable).
-LVM activates automatically. Open HR writes a systemd mount unit per volume with
-`nofail` so a missing pool never blocks boot. Encrypted volumes wait for unlock.
+md arrays assemble on boot via udev. Open HR writes one file per pool in
+`/etc/mdadm/mdadm.conf.d` listing its arrays, and never edits the main
+`mdadm.conf` or the initramfs (decision 0005). LVM activates automatically.
+Open HR writes a systemd mount unit per volume, wanted rather than required by
+`multi-user.target`, so a missing pool never blocks boot. Encrypted volumes
+wait for unlock.
 The daemon reconciles on start: it reads the real system state and compares it
 to what it expects.
 
