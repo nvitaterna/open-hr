@@ -5,6 +5,9 @@
   "description": "Web server: REST and SSE API, authentication, serves the UI build.",
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "ohr-web": "./dist/main.js"
+  },
   "exports": {
     "./*": {
       "types": "./dist/*.d.ts",
@@ -21,7 +24,10 @@
     "test:coverage": "vitest run --passWithNoTests --coverage"
   },
   "dependencies": {
-    "@ohr/shared": "workspace:*"
+    "@fastify/cookie": "catalog:",
+    "@ohr/shared": "workspace:*",
+    "fastify": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
