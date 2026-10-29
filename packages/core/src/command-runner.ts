@@ -5,7 +5,8 @@
  * cannot hang the daemon.
  */
 
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 /** 64 MiB. */
@@ -76,6 +77,23 @@ export type CommandRunner = (
   options?: RunOptions,
 ) => Promise<CommandResult>;
 
+/** A long-running command that reports output line by line. */
+export interface Watcher {
+  readonly stop: () => void;
+}
+
+/**
+ * Starts a command that keeps running, such as `udevadm monitor`, and calls
+ * `onLine` for each line it prints. `onExit` runs once when it stops for any
+ * reason, including `stop`.
+ */
+export type LineWatcher = (
+  command: string,
+  args: readonly string[],
+  onLine: (line: string) => void,
+  onExit: (reason: string) => void,
+) => Watcher;
+
 /** Reads a whole text file, or returns null if it does not exist. */
 export type FileReader = (path: string) => Promise<string | null>;
 
@@ -97,6 +115,30 @@ export const runCommand: CommandRunner = (command, args, options) =>
       },
     );
   });
+
+/** The real watcher, backed by child_process.spawn with the same environment and no shell. */
+export const watchLines: LineWatcher = (command, args, onLine, onExit) => {
+  const child = spawn(command, [...args], {
+    env: COMMAND_ENV,
+    shell: false,
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  let exited = false;
+  const exit = (reason: string): void => {
+    if (!exited) {
+      exited = true;
+      onExit(reason);
+    }
+  };
+  createInterface({ input: child.stdout }).on('line', onLine);
+  child.on('error', (error) => exit(`${command} could not run: ${error.message}`));
+  child.on('exit', (code, signal) => exit(`${command} exited (${signal ?? String(code)})`));
+  return {
+    stop: () => {
+      child.kill();
+    },
+  };
+};
 
 /** One-line description of a command result that is not a clean exit. */
 export function describeFailure(command: string, result: CommandResult): string {

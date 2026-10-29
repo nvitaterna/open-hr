@@ -2,6 +2,7 @@ import { parseArgs } from 'node:util';
 
 import { assertMountPoint, defaultMountPoint } from '@ohr/core/executors/mount';
 import { buildVolumeCreateJob } from '@ohr/core/jobs/volume-create';
+import { previewVolumeCreate, volumeSizeBytes } from '@ohr/core/jobs/volume-create-preview';
 import { readSystemState } from '@ohr/core/system-state';
 import {
   DEFAULT_DATABASE_PATH,
@@ -9,10 +10,11 @@ import {
   type FilesystemType,
   LVM_EXTENT_BYTES,
 } from '@ohr/shared/constants';
-import { isValidPoolId, volumeGroupName } from '@ohr/shared/naming';
+import { isValidPoolId } from '@ohr/shared/naming';
 import { alignDown, formatSize, parseSize, SizeParseError } from '@ohr/shared/sizes';
 import type { SystemSnapshot } from '@ohr/shared/system-snapshot';
 import type { VolumeCreateInput } from '@ohr/shared/volume-create-input';
+import type { VolumeCreateRequest } from '@ohr/shared/volume-create-request';
 import { isValidVolumeName } from '@ohr/shared/volume-name';
 
 import { EXIT_FAILURE, type Io, UsageError } from '../io.ts';
@@ -102,45 +104,12 @@ function parseCreateOptions(args: readonly string[]): CreateOptions {
   };
 }
 
-/** What stops the volume from being created, or nothing. */
-function problems(options: CreateOptions, snapshot: SystemSnapshot): string[] {
-  const found: string[] = [];
-  const groupName = volumeGroupName(options.poolId);
-  const group = snapshot.volumeGroups.find((candidate) => candidate.name === groupName);
-  if (group === undefined) {
-    found.push(
-      `There is no pool ${options.poolId} on this machine (no volume group ${groupName}).`,
-    );
-    return found;
+function describeSize(input: VolumeCreateInput, snapshot: SystemSnapshot): string {
+  const bytes = formatSize(volumeSizeBytes(input, snapshot));
+  if (input.size.kind === 'bytes') {
+    return bytes;
   }
-  if (
-    snapshot.logicalVolumes.some(
-      (volume) => volume.volumeGroup === groupName && volume.name === options.name,
-    )
-  ) {
-    found.push(`Pool ${options.poolId} already has a volume named ${options.name}.`);
-  }
-  if (options.sizeBytes === null && group.freeBytes <= 0) {
-    found.push(`Pool ${options.poolId} has no free space.`);
-  } else if (options.sizeBytes !== null && options.sizeBytes > group.freeBytes) {
-    found.push(
-      `Pool ${options.poolId} has ${formatSize(group.freeBytes)} free, less than the ${formatSize(options.sizeBytes)} asked for.`,
-    );
-  }
-  if (snapshot.mounts.some((mount) => mount.target === options.mountPoint)) {
-    found.push(`${options.mountPoint} already has something mounted on it.`);
-  }
-  return found;
-}
-
-function describeSize(options: CreateOptions, snapshot: SystemSnapshot): string {
-  if (options.sizeBytes !== null) {
-    return formatSize(options.sizeBytes);
-  }
-  const group = snapshot.volumeGroups.find(
-    (candidate) => candidate.name === volumeGroupName(options.poolId),
-  );
-  return `all free space (${formatSize(group?.freeBytes ?? 0)})`;
+  return `all free space (${bytes})`;
 }
 
 async function createVolume(args: readonly string[], io: Io): Promise<number> {
@@ -154,28 +123,31 @@ async function createVolume(args: readonly string[], io: Io): Promise<number> {
     readFile: io.readFile,
     includeSmart: false,
   });
-  const found = problems(options, snapshot);
-  for (const problem of found) {
-    io.stderr(problem);
-  }
-  if (found.length > 0) {
-    return EXIT_FAILURE;
-  }
-  let size: VolumeCreateInput['size'] = { kind: 'all-free' };
+  let size: VolumeCreateRequest['size'] = { kind: 'all-free' };
   if (options.sizeBytes !== null) {
     size = { kind: 'bytes', bytes: options.sizeBytes };
   }
-  const input: VolumeCreateInput = {
-    poolId: options.poolId,
-    name: options.name,
-    filesystem: options.filesystem,
-    size,
-    mountPoint: options.mountPoint,
-  };
+  const preview = previewVolumeCreate(
+    {
+      poolId: options.poolId,
+      name: options.name,
+      filesystem: options.filesystem,
+      size,
+      mountPoint: options.mountPoint,
+    },
+    snapshot,
+  );
+  if (!preview.ok) {
+    for (const reason of preview.reasons) {
+      io.stderr(reason);
+    }
+    return EXIT_FAILURE;
+  }
+  const input = preview.value;
   const definition = buildVolumeCreateJob(input);
   io.stdout(`Volume ${input.name} in pool ${input.poolId}`);
   io.stdout(`  Filesystem: ${input.filesystem}`);
-  io.stdout(`  Size: ${describeSize(options, snapshot)}`);
+  io.stdout(`  Size: ${describeSize(input, snapshot)}`);
   io.stdout(`  Mount point: ${input.mountPoint}`);
   io.stdout('');
   printSteps(io, definition);

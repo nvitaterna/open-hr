@@ -42,7 +42,7 @@ describe('ohr pool create', () => {
     expect(result.code).toBe(1);
     expect(result.stderr).toContain('/dev/nvme0n1 holds the operating system');
     expect(result.stderr).toContain(
-      '/dev/sda is not empty (an Open HR pool). Pass --wipe to erase it.',
+      '/dev/sda is not empty (an Open HR pool). It has to be wiped first.',
     );
     expect(result.stderr).toContain('/dev/sdq is not a physical drive');
     expect(result.stderr).toContain('Volume group ohr-p1 already exists');

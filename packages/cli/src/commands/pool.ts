@@ -1,23 +1,20 @@
-import { randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
 
-import { runChecked } from '@ohr/core/command-runner';
-import { driveRole } from '@ohr/core/drive-roles';
 import type { JobDefinition } from '@ohr/core/jobs/engine';
 import { buildPoolCreateJob } from '@ohr/core/jobs/pool-create';
-import { readSystemState } from '@ohr/core/system-state';
+import { previewPoolCreate } from '@ohr/core/jobs/pool-create-preview';
+import { readLoopDrives, readSystemState } from '@ohr/core/system-state';
 import { DEFAULT_DATABASE_PATH, type Redundancy } from '@ohr/shared/constants';
-import { isValidPoolId, mdArrayName, volumeGroupName } from '@ohr/shared/naming';
-import { LSBLK_COLUMNS, parseLsblk } from '@ohr/shared/parsers/lsblk';
-import { describePlanError, planPool } from '@ohr/shared/planner';
+import { isValidPoolId } from '@ohr/shared/naming';
 import type { PoolCreateInput } from '@ohr/shared/pool-create-input';
-import type { DriveState, SystemSnapshot } from '@ohr/shared/system-snapshot';
 
 import { EXIT_FAILURE, type Io, UsageError } from '../io.ts';
 import { confirmed, printSteps, runConfirmedJob } from '../jobs.ts';
 import { printLayout } from './plan.ts';
 
 const REDUNDANCY_LEVELS: readonly Redundancy[] = ['shr1', 'shr2'];
+/** Part of core's reason for a drive that holds something. */
+const WIPE_HINT_TRIGGER = 'wiped first';
 
 interface CreateOptions {
   readonly poolId: string;
@@ -68,93 +65,6 @@ function parseCreateOptions(args: readonly string[]): CreateOptions {
   };
 }
 
-/** What stops the pool from being created on these drives, or nothing. */
-function driveProblems(
-  options: CreateOptions,
-  snapshot: SystemSnapshot,
-  candidates: readonly DriveState[],
-): string[] {
-  const problems: string[] = [];
-  const known = new Map(candidates.map((drive) => [drive.device.path, drive]));
-  for (const path of options.devices) {
-    const drive = known.get(path);
-    if (drive === undefined) {
-      problems.push(`${path} is not a physical drive on this machine.`);
-    } else if (drive.role === 'system') {
-      problems.push(`${path} holds the operating system. Open HR never uses it.`);
-    } else if (drive.role !== 'empty' && !options.wipe) {
-      problems.push(`${path} is not empty (${describeContents(drive)}). Pass --wipe to erase it.`);
-    }
-  }
-  const group = volumeGroupName(options.poolId);
-  if (snapshot.volumeGroups.some((candidate) => candidate.name === group)) {
-    problems.push(`Volume group ${group} already exists. Choose another pool id.`);
-  }
-  const arrayPrefix = `${mdArrayName(options.poolId, 1).slice(0, -1)}`;
-  if (snapshot.mdArrays.some((array) => array.detail?.devName?.startsWith(arrayPrefix) === true)) {
-    problems.push(`Arrays named ${arrayPrefix}* already exist. Choose another pool id.`);
-  }
-  return problems;
-}
-
-function describeContents(drive: DriveState): string {
-  const { device } = drive;
-  if (drive.role === 'ohr') {
-    return 'an Open HR pool';
-  }
-  if (device.children.length > 0) {
-    return `${device.children.length} partitions`;
-  }
-  return device.fsType ?? 'a signature';
-}
-
-function buildInput(
-  options: CreateOptions,
-  candidates: readonly DriveState[],
-): PoolCreateInput | string {
-  const drives = options.devices.map((path) => {
-    const drive = candidates.find((candidate) => candidate.device.path === path);
-    if (drive === undefined) {
-      throw new Error(`${path} vanished`);
-    }
-    return drive;
-  });
-  const plan = planPool(
-    drives.map((drive) => ({ id: drive.device.path, sizeBytes: drive.device.sizeBytes })),
-    options.redundancy,
-  );
-  if (!plan.ok) {
-    return describePlanError(plan.error);
-  }
-  return {
-    poolId: options.poolId,
-    poolUuid: randomUUID(),
-    redundancy: options.redundancy,
-    wipe: options.wipe,
-    drives: drives.map((drive) => ({
-      path: drive.device.path,
-      serial: drive.device.serial,
-      wwn: drive.device.wwn,
-      sizeBytes: drive.device.sizeBytes,
-      driveUuid: randomUUID(),
-    })),
-    layout: plan.layout,
-  };
-}
-
-/** Attached loop devices, as drives. Only used with --allow-loop, for testing. */
-async function loopDrives(io: Io): Promise<DriveState[]> {
-  const text = await runChecked(io.run, 'lsblk', [
-    '--json',
-    '--bytes',
-    '--output',
-    LSBLK_COLUMNS.join(','),
-  ]);
-  return parseLsblk(text)
-    .filter((device) => device.type === 'loop' && device.sizeBytes > 0)
-    .map((device) => ({ device, role: driveRole(device), smart: null }));
-}
-
 function printPreview(io: Io, input: PoolCreateInput, definition: JobDefinition): void {
   io.stdout(`Pool ${input.poolId}`);
   printLayout(io, input.layout);
@@ -178,20 +88,28 @@ async function createPool(args: readonly string[], io: Io): Promise<number> {
   });
   const candidates = [...snapshot.drives];
   if (options.allowLoop) {
-    candidates.push(...(await loopDrives(io)));
+    candidates.push(...(await readLoopDrives(io.run)));
   }
-  const problems = driveProblems(options, snapshot, candidates);
-  for (const problem of problems) {
-    io.stderr(problem);
-  }
-  if (problems.length > 0) {
+  const preview = previewPoolCreate(
+    {
+      poolId: options.poolId,
+      redundancy: options.redundancy,
+      devices: [...options.devices],
+      wipe: options.wipe,
+    },
+    snapshot,
+    candidates,
+  );
+  if (!preview.ok) {
+    for (const reason of preview.reasons) {
+      io.stderr(reason);
+    }
+    if (!options.wipe && preview.reasons.some((reason) => reason.includes(WIPE_HINT_TRIGGER))) {
+      io.stderr('Pass --wipe to erase drives that hold something.');
+    }
     return EXIT_FAILURE;
   }
-  const input = buildInput(options, candidates);
-  if (typeof input === 'string') {
-    io.stderr(input);
-    return EXIT_FAILURE;
-  }
+  const input = preview.value;
   const definition = buildPoolCreateJob(input);
   printPreview(io, input, definition);
   if (!(await confirmed(io, 'pool id', input.poolId, options.yes))) {

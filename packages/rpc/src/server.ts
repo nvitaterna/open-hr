@@ -14,6 +14,7 @@ import {
   type MethodName,
   methods,
   type Params,
+  type ParsedParams,
   type Result,
   requestSchema,
 } from './contract.ts';
@@ -83,7 +84,7 @@ function eventJobId(data: unknown): string | null {
 export type HandledMethod = Exclude<MethodName, typeof SUBSCRIBE>;
 
 export type Handlers = {
-  readonly [M in HandledMethod]: (params: Params<M>) => Promise<Result<M>>;
+  readonly [M in HandledMethod]: (params: ParsedParams<M>) => Promise<Result<M>>;
 };
 
 export interface RpcServerOptions {
