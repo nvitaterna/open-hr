@@ -42,6 +42,8 @@ if [ "${OHR_DEV_LOOP:-}" = 1 ]; then
 fi
 # Ask for the password now, if sudo needs one, rather than in the middle of the output.
 sudo true
+# The log is opened by this shell on purpose, so it belongs to the developer, not root.
+# shellcheck disable=SC2024
 sudo node packages/core/dist/daemon/main.js --socket "$SOCKET" --database "$DEV/ohr.db" \
   --group "$(id -gn)" "${allow_loop[@]}" >>"$DEV/core.log" 2>&1 &
 PIDS+=("$!")
