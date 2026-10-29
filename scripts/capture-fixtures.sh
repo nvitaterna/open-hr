@@ -25,7 +25,7 @@ run findmnt.json findmnt --json --bytes --output TARGET,SOURCE,FSTYPE,OPTIONS,SI
 run blkid.txt blkid -o export
 run pvs.json pvs --reportformat json --units b --nosuffix --options pv_name,vg_name,pv_uuid,pv_size,pv_free
 run vgs.json vgs --reportformat json --units b --nosuffix --options vg_name,vg_uuid,vg_size,vg_free,pv_count,lv_count
-run lvs.json lvs --reportformat json --units b --nosuffix --options lv_name,vg_name,lv_uuid,lv_size,lv_path,lv_attr,segtype
+run lvs.json lvs --reportformat json --units b --nosuffix --options lv_name,vg_name,lv_uuid,lv_size,lv_path,lv_attr,lv_layout
 
 if [[ -r /proc/mdstat ]]; then
   cp /proc/mdstat "$out/mdstat.txt"

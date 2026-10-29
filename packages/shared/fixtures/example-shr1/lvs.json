@@ -9,7 +9,7 @@
           "lv_size": "12001770209280",
           "lv_path": "/dev/ohr-p1/data",
           "lv_attr": "-wi-ao----",
-          "segtype": "linear"
+          "lv_layout": "linear"
         }
       ]
     }
