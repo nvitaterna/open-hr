@@ -41,6 +41,7 @@ const EMPTY_SNAPSHOT = {
   volumeGroups: [],
   logicalVolumes: [],
   mounts: [],
+  labels: [],
   warnings: [],
 };
 
@@ -61,6 +62,9 @@ function defaultHandlers(): Handlers {
       }
       return Promise.reject(new RpcError('not-found', `There is no job ${id}.`));
     },
+    'pools.list': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
+    'pools.get': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
+    'drives.list': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
     'pools.previewCreate': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
     'volumes.previewCreate': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
     'jobs.submit': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
@@ -99,6 +103,9 @@ beforeEach(async () => {
       'system.state': (params) => handlers['system.state'](params),
       'jobs.list': (params) => handlers['jobs.list'](params),
       'jobs.get': (params) => handlers['jobs.get'](params),
+      'pools.list': (params) => handlers['pools.list'](params),
+      'pools.get': (params) => handlers['pools.get'](params),
+      'drives.list': (params) => handlers['drives.list'](params),
       'pools.previewCreate': (params) => handlers['pools.previewCreate'](params),
       'volumes.previewCreate': (params) => handlers['volumes.previewCreate'](params),
       'jobs.submit': (params) => handlers['jobs.submit'](params),

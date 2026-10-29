@@ -14,6 +14,7 @@ function snapshot(warning: string): SystemSnapshot {
     volumeGroups: [],
     logicalVolumes: [],
     mounts: [],
+    labels: [],
     warnings: [warning],
   };
 }

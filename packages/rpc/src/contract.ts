@@ -16,6 +16,7 @@ import {
 } from '@ohr/shared/jobs';
 import { poolCreateInputSchema } from '@ohr/shared/pool-create-input';
 import { poolCreateRequestSchema } from '@ohr/shared/pool-create-request';
+import { driveViewSchema, poolViewSchema } from '@ohr/shared/pool-view';
 import { systemSnapshotSchema } from '@ohr/shared/system-snapshot';
 import { volumeCreateInputSchema } from '@ohr/shared/volume-create-input';
 import { volumeCreateRequestSchema } from '@ohr/shared/volume-create-request';
@@ -75,6 +76,21 @@ export const methods = {
   'system.state': {
     params: noParams,
     result: cachedStateSchema,
+  },
+  /** Every pool on the machine, derived from the cached snapshot. */
+  'pools.list': {
+    params: noParams,
+    result: z.strictObject({ pools: z.array(poolViewSchema) }),
+  },
+  /** One pool, or `not-found`. */
+  'pools.get': {
+    params: z.strictObject({ id: z.string().min(1) }),
+    result: z.strictObject({ pool: poolViewSchema }),
+  },
+  /** Every drive with its role and pool. */
+  'drives.list': {
+    params: noParams,
+    result: z.strictObject({ drives: z.array(driveViewSchema) }),
   },
   'jobs.list': {
     params: noParams,

@@ -13,6 +13,7 @@ import type { CommandResult, LineWatcher } from '../command-runner.ts';
 import {
   exampleShr1Answers,
   exampleShr1Files,
+  exampleShr1Labels,
   fakeRunner,
   fixture,
   ok,
@@ -72,6 +73,7 @@ beforeEach(async () => {
       return fake(command, args, options);
     },
     readFile: exampleShr1Files(),
+    labelIo: exampleShr1Labels(),
     log: () => undefined,
   });
   rpc = await RpcClient.connect(socketPath);

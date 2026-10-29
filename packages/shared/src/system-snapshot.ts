@@ -8,6 +8,7 @@
 
 import { z } from 'zod';
 
+import { labelReadResultSchema } from './label-descriptor.ts';
 import type { Mount } from './parsers/findmnt.ts';
 import type { BlockDevice } from './parsers/lsblk.ts';
 import type { LogicalVolume, PhysicalVolume, VolumeGroup } from './parsers/lvm.ts';
@@ -197,6 +198,15 @@ export interface MdArrayState {
   readonly detail: MdDetail | null;
 }
 
+/** What a label partition held, or why it could not be read. */
+export type LabelReading = z.infer<typeof labelReadResultSchema>;
+
+export interface LabelState {
+  /** The label partition's device path, such as /dev/sda1. */
+  readonly partition: string;
+  readonly reading: LabelReading;
+}
+
 export interface SystemSnapshot {
   readonly drives: readonly DriveState[];
   readonly mdArrays: readonly MdArrayState[];
@@ -204,6 +214,8 @@ export interface SystemSnapshot {
   readonly volumeGroups: readonly VolumeGroup[];
   readonly logicalVolumes: readonly LogicalVolume[];
   readonly mounts: readonly Mount[];
+  /** Every Open HR label partition found on the drives, in drive order. */
+  readonly labels: readonly LabelState[];
   /** Things that could not be read. The snapshot is still usable but incomplete. */
   readonly warnings: readonly string[];
 }
@@ -221,6 +233,11 @@ export const mdArrayStateSchema: z.ZodType<MdArrayState> = z.object({
   detail: mdDetailSchema.nullable(),
 });
 
+export const labelStateSchema: z.ZodType<LabelState> = z.object({
+  partition: z.string(),
+  reading: labelReadResultSchema,
+});
+
 export const systemSnapshotSchema: z.ZodType<SystemSnapshot> = z.object({
   drives: z.array(driveStateSchema),
   mdArrays: z.array(mdArrayStateSchema),
@@ -228,5 +245,6 @@ export const systemSnapshotSchema: z.ZodType<SystemSnapshot> = z.object({
   volumeGroups: z.array(volumeGroupSchema),
   logicalVolumes: z.array(logicalVolumeSchema),
   mounts: z.array(mountSchema),
+  labels: z.array(labelStateSchema),
   warnings: z.array(z.string()),
 });

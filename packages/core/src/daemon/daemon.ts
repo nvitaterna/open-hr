@@ -17,6 +17,7 @@ import {
   type Watcher,
   watchLines,
 } from '../command-runner.ts';
+import type { BlockDeviceIo } from '../executors/label-partition.ts';
 import { type JobDeps, jobDefinition } from '../jobs/definitions.ts';
 import type { JobEvent } from '../jobs/engine.ts';
 import { JobStore } from '../jobs/store.ts';
@@ -116,10 +117,12 @@ export interface DaemonOptions {
   readonly socketGroup: string | null;
   readonly run: CommandRunner;
   readonly readFile: FileReader;
+  /** Reads the label partitions. Tests pass a fake so they never open a real device. */
+  readonly labelIo: BlockDeviceIo;
   readonly refreshIntervalMs?: number;
   /** Starts `udevadm monitor`. Null turns udev watching off, for tests. */
   readonly watch?: LineWatcher | null;
-  /** Offer loop devices as drives. Only for tests on loop devices. */
+  /** Count loop devices as drives. Only for tests on loop devices. */
   readonly allowLoopDevices?: boolean;
   /** Overrides for the job builders, for tests. */
   readonly jobDeps?: JobDeps;
@@ -147,7 +150,13 @@ export async function startDaemon(options: DaemonOptions): Promise<Daemon> {
   let server: RpcServer | null = null;
   const state = new StateCache({
     read: () =>
-      readSystemState({ run: options.run, readFile: options.readFile, includeSmart: false }),
+      readSystemState({
+        run: options.run,
+        readFile: options.readFile,
+        includeSmart: false,
+        labelIo: options.labelIo,
+        includeLoopDevices: options.allowLoopDevices ?? false,
+      }),
     onChange: ({ readAt, stateHash }) => server?.publish('state.changed', { readAt, stateHash }),
   });
   const jobDeps = options.jobDeps ?? {};
@@ -176,8 +185,6 @@ export async function startDaemon(options: DaemonOptions): Promise<Daemon> {
         store,
         state,
         jobs,
-        run: options.run,
-        allowLoopDevices: options.allowLoopDevices ?? false,
         jobDeps,
       }),
       log: options.log,
