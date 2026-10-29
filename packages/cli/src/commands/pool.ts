@@ -1,25 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { type JobEvent, previewJob, runJob, submitJob } from '@ohr/core/jobs/engine';
-import { JobConflictError } from '@ohr/core/jobs/job-conflict-error';
+import type { JobDefinition } from '@ohr/core/jobs/engine';
 import { buildPoolCreateJob } from '@ohr/core/jobs/pool-create';
-import { systemStateHash } from '@ohr/core/jobs/state-hash';
-import { JobStore } from '@ohr/core/jobs/store';
 import { type DriveState, readSystemState, type SystemSnapshot } from '@ohr/core/system-state';
 import { DEFAULT_DATABASE_PATH, type Redundancy } from '@ohr/shared/constants';
-import type { JobRecord } from '@ohr/shared/jobs';
 import { isValidPoolId, mdArrayName, volumeGroupName } from '@ohr/shared/naming';
 import { describePlanError, planPool } from '@ohr/shared/planner';
 import type { PoolCreateInput } from '@ohr/shared/pool-create-input';
 
-import { EXIT_FAILURE, EXIT_OK, type Io, UsageError } from '../io.ts';
+import { EXIT_FAILURE, type Io, UsageError } from '../io.ts';
+import { confirmed, printSteps, runConfirmedJob } from '../jobs.ts';
 import { printLayout } from './plan.ts';
 
 const REDUNDANCY_LEVELS: readonly Redundancy[] = ['shr1', 'shr2'];
-const INDENT = '  ';
 
 interface CreateOptions {
   readonly poolId: string;
@@ -134,50 +128,14 @@ function buildInput(options: CreateOptions, snapshot: SystemSnapshot): PoolCreat
   };
 }
 
-function printPreview(
-  io: Io,
-  input: PoolCreateInput,
-  steps: readonly { name: string; commands: readonly string[] }[],
-): void {
+function printPreview(io: Io, input: PoolCreateInput, definition: JobDefinition): void {
   io.stdout(`Pool ${input.poolId}`);
   printLayout(io, input.layout);
   io.stdout('');
-  io.stdout('Steps');
-  for (const [index, step] of steps.entries()) {
-    io.stdout(`${INDENT}${index + 1}. ${step.name}`);
-    for (const command of step.commands) {
-      io.stdout(`${INDENT}${INDENT}${command}`);
-    }
-  }
+  printSteps(io, definition);
   io.stdout('');
   const erased = input.drives.map((drive) => drive.path).join(', ');
   io.stdout(`This erases everything on ${erased}.`);
-}
-
-function progressLine(event: JobEvent, total: number): string | null {
-  if (event.kind === 'step') {
-    if (event.status === 'running') {
-      return `[${event.index + 1}/${total}] ${event.name}`;
-    }
-    if (event.status === 'failed') {
-      return `[${event.index + 1}/${total}] ${event.name}: failed: ${event.error ?? ''}`;
-    }
-    return `[${event.index + 1}/${total}] ${event.name}: ${event.status}`;
-  }
-  if (event.kind === 'log') {
-    return `${INDENT}${event.line}`;
-  }
-  return null;
-}
-
-function reportOutcome(io: Io, job: JobRecord): number {
-  if (job.status === 'done') {
-    io.stdout(`Pool ${job.poolId} created. Job ${job.id}.`);
-    return EXIT_OK;
-  }
-  io.stderr(`Pool ${job.poolId} was not created: ${job.error ?? job.status}. Job ${job.id}.`);
-  io.stderr('Nothing was undone. Fix the cause and run the same command again to resume.');
-  return EXIT_FAILURE;
 }
 
 async function createPool(args: readonly string[], io: Io): Promise<number> {
@@ -186,8 +144,11 @@ async function createPool(args: readonly string[], io: Io): Promise<number> {
     io.stderr('Creating a pool changes drives, so it needs root. Run with sudo.');
     return EXIT_FAILURE;
   }
-  const snapshotOptions = { run: io.run, readFile: io.readFile, includeSmart: false };
-  const snapshot = await readSystemState(snapshotOptions);
+  const snapshot = await readSystemState({
+    run: io.run,
+    readFile: io.readFile,
+    includeSmart: false,
+  });
   const problems = driveProblems(options, snapshot);
   for (const problem of problems) {
     io.stderr(problem);
@@ -201,43 +162,16 @@ async function createPool(args: readonly string[], io: Io): Promise<number> {
     return EXIT_FAILURE;
   }
   const definition = buildPoolCreateJob(input);
-  const preview = previewJob(definition);
-  printPreview(io, input, preview.steps);
-  if (!options.yes) {
-    const typed = await io.confirm(`Type the pool id (${input.poolId}) to continue: `);
-    if (typed.trim() !== input.poolId) {
-      io.stderr('Cancelled. Nothing was changed.');
-      return EXIT_FAILURE;
-    }
+  printPreview(io, input, definition);
+  if (!(await confirmed(io, 'pool id', input.poolId, options.yes))) {
+    return EXIT_FAILURE;
   }
-  await mkdir(dirname(options.database), { recursive: true });
-  const store = JobStore.open(options.database);
-  try {
-    let job: JobRecord;
-    try {
-      job = submitJob(store, definition, systemStateHash(snapshot));
-    } catch (error) {
-      if (error instanceof JobConflictError) {
-        io.stderr(error.message);
-        return EXIT_FAILURE;
-      }
-      throw error;
-    }
-    const total = preview.steps.length;
-    const finished = await runJob(store, definition, job.id, {
-      run: io.run,
-      stateHash: systemStateHash(await readSystemState(snapshotOptions)),
-      listener: (event) => {
-        const line = progressLine(event, total);
-        if (line !== null) {
-          io.stdout(line);
-        }
-      },
-    });
-    return reportOutcome(io, finished);
-  } finally {
-    store.close();
-  }
+  return runConfirmedJob(io, {
+    definition,
+    snapshot,
+    database: options.database,
+    subject: `Pool ${input.poolId}`,
+  });
 }
 
 export const POOL_USAGE = `Usage: ohr pool create --id <pool> --redundancy <shr1|shr2> [--wipe] [--yes] <device>...
