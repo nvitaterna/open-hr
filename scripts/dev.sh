@@ -44,7 +44,7 @@ fi
 sudo true
 sudo node packages/core/dist/daemon/main.js --socket "$SOCKET" --database "$DEV/ohr.db" \
   --group "$(id -gn)" "${allow_loop[@]}" >>"$DEV/core.log" 2>&1 &
-PIDS+=($!)
+PIDS+=("$!")
 for _ in $(seq 50); do
   [ -S "$SOCKET" ] && break
   sleep 0.2
@@ -56,7 +56,7 @@ if [ ! -f "$DEV/web/web.db" ] && [ ! -f "$DEV/web/setup-token" ]; then
 fi
 node packages/web/dist/main.js --insecure-http --port "$WEB_PORT" --data "$DEV/web" \
   --socket "$SOCKET" >>"$DEV/web.log" 2>&1 &
-PIDS+=($!)
+PIDS+=("$!")
 
 echo "ohr-core and ohr-web logs: $DEV/core.log, $DEV/web.log"
 echo "A forgotten setup token is in $DEV/web/setup-token."

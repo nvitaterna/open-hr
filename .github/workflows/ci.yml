@@ -28,11 +28,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - name: Check the shell scripts
+        # Each finding becomes an annotation on its file and line.
         run: |
+          set -o pipefail
           shellcheck --version | sed -n 2p
-          shellcheck --severity=warning scripts/*.sh deploy/*.sh \
+          shellcheck --severity=warning --format=gcc scripts/*.sh deploy/*.sh \
             deploy/debian/postinst deploy/debian/prerm deploy/debian/postrm \
-            deploy/debian/ohr deploy/debian/ohr-web
+            deploy/debian/ohr deploy/debian/ohr-web |
+            sed -E 's/^([^:]+):([0-9]+):([0-9]+): [a-z]+: (.*)$/::error file=\1,line=\2,col=\3::\4/'
       - run: pnpm typecheck
       - run: pnpm test:coverage
       - run: pnpm build
