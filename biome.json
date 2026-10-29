@@ -121,6 +121,26 @@
           }
         }
       }
+    },
+    {
+      "includes": ["**/vitest*.config.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDefaultExport": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.integration.test.ts"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noAwaitInLoops": "off"
+          }
+        }
+      }
     }
   ]
 }
