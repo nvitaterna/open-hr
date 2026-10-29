@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { JOB_ID } from './fake-core-test-helpers.ts';
 import { type Harness, startHarness } from './web-test-helpers.ts';
 
+const STARTS_WITH_RETRY = /^retry: /u;
+
 let web: Harness;
 
 beforeEach(async () => {
@@ -21,9 +23,10 @@ describe('the event stream', () => {
     await web.untilSubscribed();
     const step = { jobId: JOB_ID, index: 0, name: 'Create', status: 'running', error: null };
     web.publish('job.step', { ...step, status: 'running' });
-    const text = await stream.waitFor(': keepalive');
-    expect(text).toContain(`event: job.step\ndata: ${JSON.stringify(step)}\n\n`);
-    expect(text.startsWith('retry: ')).toBe(true);
+    // Wait for each on its own: on a slow machine a keepalive can come before the event.
+    const frame = `event: job.step\ndata: ${JSON.stringify(step)}\n\n`;
+    await expect(stream.waitFor(frame)).resolves.toMatch(STARTS_WITH_RETRY);
+    await expect(stream.waitFor(': keepalive')).resolves.toContain(': keepalive');
   });
 
   it('shares one core subscription between streams and lets go of closed ones', async () => {
