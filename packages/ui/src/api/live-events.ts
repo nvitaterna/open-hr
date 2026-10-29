@@ -4,22 +4,34 @@
  * The browser reconnects a dropped stream by itself.
  */
 
-import { useQueryClient } from '@tanstack/react-query';
+import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
-import type { EventName } from '@ohr/rpc/contract';
+import type { EventData, EventName, Result } from '@ohr/rpc/contract';
 
 import { MACHINE_QUERIES, queryKeys } from './queries.ts';
 
 const EVENTS_URL = '/api/v1/events';
 
-/** Which queries each event makes stale. Log lines change nothing a list shows. */
+/** Which queries each event makes stale. Log lines are added in place by appendLogLine. */
 const STALE_AFTER: Record<EventName, readonly (readonly string[])[]> = {
   'state.changed': MACHINE_QUERIES,
   'job.status': [queryKeys.jobs],
   'job.step': [queryKeys.jobs],
   'job.log': [],
 };
+
+/** Adds a log line to the job's page, if it is open, without fetching the whole job again. */
+function appendLogLine(client: QueryClient, message: MessageEvent<string>): void {
+  const data = JSON.parse(message.data) as EventData<'job.log'>;
+  client.setQueryData<Result<'jobs.get'>>([...queryKeys.jobs, data.jobId], (current) => {
+    if (current === undefined) {
+      return current;
+    }
+    const line = { step: data.step, at: new Date().toISOString(), line: data.line };
+    return { ...current, log: [...current.log, line] };
+  });
+}
 
 export type LiveStatus = 'connecting' | 'live' | 'offline';
 
@@ -52,6 +64,7 @@ export function useLiveEvents(): LiveStatus {
         }
       });
     }
+    source.addEventListener('job.log', (message) => appendLogLine(client, message));
     return () => source.close();
   }, [client]);
   return status;

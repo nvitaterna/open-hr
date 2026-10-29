@@ -49,12 +49,19 @@ function stubFetch(routes: Routes): StubbedApi {
   return api;
 }
 
-/** An EventSource that never connects. jsdom has none. */
-class SilentEventSource extends EventTarget {
+/** The event streams the app opened, newest last. */
+const openStreams: FakeEventSource[] = [];
+
+/** An EventSource that never connects; tests send it events with emit(). jsdom has none. */
+class FakeEventSource extends EventTarget {
   static readonly CLOSED = 2;
   readyState = 0;
+  constructor() {
+    super();
+    openStreams.push(this);
+  }
   close(): void {
-    this.readyState = SilentEventSource.CLOSED;
+    this.readyState = FakeEventSource.CLOSED;
   }
 }
 
@@ -127,7 +134,8 @@ export const POOL: PoolView = {
 /** Renders the app at `path` with the API stubbed by `routes`. */
 export function renderApp(routes: Routes, path = '/'): { api: StubbedApi; view: RenderResult } {
   const api = stubFetch(routes);
-  vi.stubGlobal('EventSource', SilentEventSource);
+  openStreams.length = 0;
+  vi.stubGlobal('EventSource', FakeEventSource);
   const view = render(
     <QueryClientProvider client={createQueryClient()}>
       <MemoryRouter initialEntries={[path]}>
@@ -136,4 +144,13 @@ export function renderApp(routes: Routes, path = '/'): { api: StubbedApi; view: 
     </QueryClientProvider>,
   );
   return { api, view };
+}
+
+/** Sends an event, as ohr-web would, to the stream the app opened. */
+export function emit(event: string, data: unknown): void {
+  const stream = openStreams.at(-1);
+  if (stream === undefined) {
+    throw new Error('The app has not opened an event stream.');
+  }
+  stream.dispatchEvent(new MessageEvent(event, { data: JSON.stringify(data) }));
 }

@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { Link } from 'react-router';
 
 import type { PoolView } from '@ohr/shared/pool-view';
 import { formatSize } from '@ohr/shared/sizes';
@@ -36,7 +37,14 @@ export function PoolCard({ pool }: { readonly pool: PoolView }): ReactElement {
   return (
     <Panel>
       <div className="flex flex-wrap items-center gap-3">
-        <h3 className="text-base font-semibold">{pool.id}</h3>
+        <h3 className="text-base font-semibold">
+          <Link
+            to={`/pools/${encodeURIComponent(pool.id)}`}
+            className="text-emerald-700 hover:underline dark:text-emerald-400"
+          >
+            {pool.id}
+          </Link>
+        </h3>
         <StatusBadge status={pool.health} />
         <span className="text-sm text-zinc-600 dark:text-zinc-400">
           {redundancy} · {pool.drives.length} drives · {pool.tiers.length} tiers

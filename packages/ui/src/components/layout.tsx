@@ -8,6 +8,8 @@ import { type Theme, useTheme } from '../theme.ts';
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard' },
   { to: '/drives', label: 'Drives' },
+  { to: '/volumes', label: 'Volumes' },
+  { to: '/jobs', label: 'Jobs' },
 ] as const;
 
 const LIVE_LABELS: Record<LiveStatus, string> = {
@@ -65,7 +67,7 @@ export function Layout({ username }: { readonly username: string }): ReactElemen
           <span className="font-semibold tracking-tight">Open HR</span>
           <nav aria-label="Main" className="flex flex-wrap gap-1">
             {NAV_ITEMS.map((item) => (
-              <NavLink key={item.to} to={item.to} end={true} className={navClass}>
+              <NavLink key={item.to} to={item.to} end={item.to === '/'} className={navClass}>
                 {item.label}
               </NavLink>
             ))}

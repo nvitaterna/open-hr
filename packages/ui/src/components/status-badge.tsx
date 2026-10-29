@@ -1,7 +1,10 @@
 import type { ReactElement } from 'react';
 
-import type { JobStatus } from '@ohr/shared/jobs';
-import type { PoolHealth } from '@ohr/shared/pool-view';
+import type { JobStatus, StepStatus } from '@ohr/shared/jobs';
+import type { PoolHealth, TierHealth } from '@ohr/shared/pool-view';
+
+/** Every status a badge shows: pools, tiers, jobs, and steps. */
+type Status = PoolHealth | TierHealth | JobStatus | StepStatus;
 
 type Tone = 'good' | 'busy' | 'bad' | 'quiet';
 
@@ -12,20 +15,23 @@ const TONE_CLASSES: Record<Tone, string> = {
   quiet: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
 };
 
-const STATUS_TONES: Record<PoolHealth | JobStatus, Tone> = {
+const STATUS_TONES: Record<Status, Tone> = {
   healthy: 'good',
   done: 'good',
   syncing: 'busy',
   rebuilding: 'busy',
   running: 'busy',
   pending: 'quiet',
+  skipped: 'quiet',
   degraded: 'bad',
   unavailable: 'bad',
+  inactive: 'bad',
+  missing: 'bad',
   failed: 'bad',
 };
 
-/** A pool's health or a job's status as a coloured label. The word carries the meaning, not the colour. */
-export function StatusBadge({ status }: { readonly status: PoolHealth | JobStatus }): ReactElement {
+/** A status as a coloured label. The word carries the meaning, not the colour. */
+export function StatusBadge({ status }: { readonly status: Status }): ReactElement {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${TONE_CLASSES[STATUS_TONES[status]]}`}

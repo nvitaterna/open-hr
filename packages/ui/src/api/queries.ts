@@ -19,6 +19,7 @@ import { ApiRequestError } from './api-request-error.ts';
 import { apiGet, apiPost } from './http.ts';
 
 const UNAUTHORIZED = 401;
+const NOT_FOUND = 404;
 const ME_KEY = 'me';
 
 /** After the session started or ended, everything is asked again. */
@@ -71,6 +72,32 @@ export function usePools(): UseQueryResult<Result<'pools.list'>> {
   return useQuery({ queryKey: queryKeys.pools, queryFn: () => apiGet('/pools') });
 }
 
+/** One pool. Its key starts with the pools key, so a state change refetches it too. */
+export function usePool(id: string): UseQueryResult<Result<'pools.get'>> {
+  return useQuery({
+    queryKey: [...queryKeys.pools, id],
+    queryFn: () => apiGet(`/pools/${encodeURIComponent(id)}`),
+  });
+}
+
+/** One job with its log. Live log lines are added to it by live-events.ts. */
+export function useJob(id: string): UseQueryResult<Result<'jobs.get'>> {
+  return useQuery({
+    queryKey: [...queryKeys.jobs, id],
+    queryFn: () => apiGet(`/jobs/${encodeURIComponent(id)}`),
+  });
+}
+
+/** Runs a failed job again from its failed step. */
+export function useRetryJob(): UseMutationResult<Result<'jobs.retry'>, Error, string> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiPost<Result<'jobs.retry'>>(`/jobs/${encodeURIComponent(id)}/retry`),
+    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.jobs }),
+  });
+}
+
 export function useJobs(): UseQueryResult<Result<'jobs.list'>> {
   return useQuery({ queryKey: queryKeys.jobs, queryFn: () => apiGet('/jobs') });
 }
@@ -113,4 +140,9 @@ export function useLogout(): UseMutationResult<void, Error, void> {
 /** True for an error that means the session is gone. */
 export function isSignedOut(error: unknown): boolean {
   return error instanceof ApiRequestError && error.status === UNAUTHORIZED;
+}
+
+/** True for an error that means the thing asked for does not exist. */
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiRequestError && error.status === NOT_FOUND;
 }
