@@ -13,3 +13,4 @@ Copy [0000-template.md](0000-template.md) to start a new one.
 | 0003   | [Layout planner rules and system inspection](0003-planner-and-inspection.md)        | Accepted |
 | 0004   | [Partition names, label partition, and md and LVM overhead](0004-on-disk-format.md) | Accepted |
 | 0005   | [Boot-time assembly and mount units](0005-boot-time-assembly.md)                    | Accepted |
+| 0006   | [Job engine and database](0006-job-engine.md)                                       | Accepted |
