@@ -18,7 +18,7 @@ const ARRAYS = ['/dev/md/ohr_p1_t1', '/dev/md/ohr_p1_t2'];
 const REPORT_ARGS = ['--reportformat', 'json', '--units', 'b', '--nosuffix', '--options'];
 const NOT_WHOLE_EXTENTS = /whole number of 4194304-byte extents/u;
 const NO_PHYSICAL_VOLUMES = /at least one physical volume/u;
-const NOT_ONE_ROW = /Expected one volume group in the LVM report, got 0/u;
+const NOT_ONE_ROW = /Expected one volume group in the report, got 0/u;
 
 const PV_UUID = 'Ddlhu9-3vYH-l2Fo-vGM6-pcNE-Fnq2-llSfjK';
 const ARRAY_BYTES = 1_071_644_672;
