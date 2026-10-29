@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { exampleMachine, runCli } from '../cli-test-helpers.ts';
+import { exampleMachine, runCli, vmFiles, vmMachine } from '../cli-test-helpers.ts';
+
+/** The output line that mentions `text`. */
+function lineWith(output: string, text: string): string {
+  return output.split('\n').find((line) => line.includes(text)) ?? '';
+}
 
 describe('ohr status', () => {
   it('lists drives, arrays, and volume groups', async () => {
@@ -12,6 +17,20 @@ describe('ohr status', () => {
     );
     expect(result.stdout).toContain('ohr-p1  12.00 TB  0 B   2    1');
     expect(result.stdout).not.toContain('Warnings');
+  });
+
+  it('shows a new array being built as rebuilding, not degraded', async () => {
+    const { stdout } = await runCli(['status'], vmMachine(), vmFiles('mdstat-resync.txt'));
+    expect(lineWith(stdout, 'ohr_dev_t1')).toContain('rebuilding 70.8%');
+    expect(lineWith(stdout, 'ohr_dev_t2')).toContain('rebuild queued');
+    expect(lineWith(stdout, 'ohr_dev_t4')).toContain('resync delayed');
+    expect(stdout).not.toContain('DEGRADED');
+  });
+
+  it('shows the VM pool as healthy once built', async () => {
+    const { stdout } = await runCli(['status'], vmMachine(), vmFiles('mdstat.txt'));
+    expect(lineWith(stdout, 'ohr_dev_t1')).toContain('healthy');
+    expect(lineWith(stdout, '/dev/sda ')).toContain(' ohr ');
   });
 
   it('shows SMART health when asked', async () => {

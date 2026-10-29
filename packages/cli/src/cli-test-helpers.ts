@@ -44,6 +44,26 @@ export function exampleFiles(): ReadonlyMap<string, string> {
   return new Map([['/proc/mdstat', fixture('example-shr1/mdstat.txt')]]);
 }
 
+/** The real VM pool from fixtures/vm-shr1. */
+export function vmMachine(): Map<string, CommandResult> {
+  const answers = new Map<string, CommandResult>([
+    ['lsblk', ok(fixture('vm-shr1/lsblk.json'))],
+    ['findmnt', ok(fixture('vm-shr1/findmnt.json'))],
+    ['pvs', ok(fixture('vm-shr1/pvs.json'))],
+    ['vgs', ok(fixture('vm-shr1/vgs.json'))],
+    ['lvs', ok(fixture('vm-shr1/lvs.json'))],
+  ]);
+  for (const md of ['md124', 'md125', 'md126', 'md127']) {
+    answers.set(`mdadm /dev/${md}`, ok(fixture(`vm-shr1/mdadm-detail-${md}.txt`)));
+  }
+  return answers;
+}
+
+/** /proc/mdstat from the VM pool, after the initial build or during it. */
+export function vmFiles(mdstat: 'mdstat.txt' | 'mdstat-resync.txt'): ReadonlyMap<string, string> {
+  return new Map([['/proc/mdstat', fixture(`vm-shr1/${mdstat}`)]]);
+}
+
 /** Runs the CLI against a fake machine and captures its output. */
 export async function runCli(
   args: readonly string[],
