@@ -8,6 +8,16 @@ set -euo pipefail
 URL=https://127.0.0.1:7700
 FAILED=0
 
+# GitHub Actions shows these as annotations on the pull request.
+annotate() {
+  local level=$1 title=$2 text=$3
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    text=${text//'%'/'%25'}
+    text=${text//$'\n'/'%0A'}
+    echo "::$level title=$title::$text"
+  fi
+}
+
 check() {
   local what=$1
   shift
@@ -15,8 +25,24 @@ check() {
     echo "PASS  $what"
   else
     echo "FAIL  $what"
+    annotate error "Smoke test" "FAIL  $what"
     FAILED=1
   fi
+}
+
+# What the services said, so a failure can be understood without the full log.
+diagnose() {
+  local unit
+  for unit in ohr-core ohr-web; do
+    local report
+    report=$(
+      systemctl status --no-pager --lines=0 "$unit.service" 2>&1 | head -n 5
+      journalctl --no-pager --unit="$unit.service" --lines=15 --output=cat 2>&1
+    )
+    echo "--- $unit"
+    echo "$report"
+    annotate warning "$unit" "$report"
+  done
 }
 
 owner_mode() {
@@ -46,4 +72,7 @@ check "the setup token is ohr:ohr 600" owner_mode /var/lib/ohr/web/setup-token "
 check "the TLS key is root:ohr 640" owner_mode /etc/ohr/tls/key.pem "root:ohr 640"
 check "the certificate names this host" sh -c "openssl x509 -in /etc/ohr/tls/cert.pem -noout -ext subjectAltName | grep -q 'DNS:$(hostname)'"
 
+if [ "$FAILED" -ne 0 ]; then
+  diagnose
+fi
 exit "$FAILED"
