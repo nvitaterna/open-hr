@@ -40,7 +40,7 @@ const lvRowSchema = z.object({
   lv_size: integerSchema,
   lv_path: textSchema,
   lv_attr: z.string(),
-  segtype: z.string(),
+  lv_layout: z.string(),
 });
 
 export const PV_FIELDS = ['pv_name', 'vg_name', 'pv_uuid', 'pv_size', 'pv_free'] as const;
@@ -59,7 +59,7 @@ export const LV_FIELDS = [
   'lv_size',
   'lv_path',
   'lv_attr',
-  'segtype',
+  'lv_layout',
 ] as const;
 
 export interface PhysicalVolume {
@@ -87,8 +87,11 @@ export interface LogicalVolume {
   readonly path: string | null;
   /** The ten-character lv_attr string, see lvs(8). */
   readonly attributes: string;
-  /** Segment type, such as linear, striped, or cache. */
-  readonly segmentType: string;
+  /**
+   * Layout, such as linear, striped, "raid,raid1", or cache. Read from lv_layout
+   * because asking lvs for segtype makes it print one row per segment.
+   */
+  readonly layout: string;
 }
 
 export function parsePvs(text: string): PhysicalVolume[] {
@@ -120,6 +123,6 @@ export function parseLvs(text: string): LogicalVolume[] {
     sizeBytes: row.lv_size,
     path: row.lv_path,
     attributes: row.lv_attr,
-    segmentType: row.segtype,
+    layout: row.lv_layout,
   }));
 }

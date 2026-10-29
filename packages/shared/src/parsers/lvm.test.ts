@@ -26,7 +26,7 @@ describe('LVM parsers', () => {
       name: 'data',
       volumeGroup: 'ohr-p1',
       path: '/dev/ohr-p1/data',
-      segmentType: 'linear',
+      layout: 'linear',
       sizeBytes: vg?.sizeBytes,
     });
   });

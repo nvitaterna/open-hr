@@ -1,0 +1,12 @@
+MD_LEVEL=raid5
+MD_DEVICES=3
+MD_METADATA=1.2
+MD_UUID=2b19f6c2:6d03bfce:2dbd7349:66944f2e
+MD_DEVNAME=ohr_dev_t3
+MD_NAME=any:ohr_dev_t3
+MD_DEVICE_dev_sdg4_ROLE=2
+MD_DEVICE_dev_sdg4_DEV=/dev/sdg4
+MD_DEVICE_dev_sdf4_ROLE=1
+MD_DEVICE_dev_sdf4_DEV=/dev/sdf4
+MD_DEVICE_dev_sde4_ROLE=0
+MD_DEVICE_dev_sde4_DEV=/dev/sde4
