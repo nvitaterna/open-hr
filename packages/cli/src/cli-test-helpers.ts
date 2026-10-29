@@ -20,6 +20,8 @@ function ok(stdout: string): CommandResult {
 const GIB = 1_073_741_824;
 const FAKE_DISK_GIB = 4;
 const FAKE_DISK_BYTES = FAKE_DISK_GIB * GIB;
+const POOL_FREE_GIB = 8;
+const POOL_FREE_BYTES = POOL_FREE_GIB * GIB;
 
 function emptyDisk(name: string, sizeBytes: number, serial: string): string {
   return JSON.stringify({
@@ -119,6 +121,14 @@ export function emptyDrivesMachine(): Map<string, CommandResult> {
     ['vgs', ok(emptyReport('vg'))],
     ['lvs', ok(emptyReport('lv'))],
   ]);
+}
+
+/** The empty-drives machine plus a pool p2 with 8 GiB free and no volumes yet. */
+export function poolMachine(): Map<string, CommandResult> {
+  const answers = emptyDrivesMachine();
+  const vgs = `{"report":[{"vg":[{"vg_name":"ohr-p2","vg_uuid":"7cjBJ4-KVk1-HVST-0h32-yU8H-5llJ-zzI029","vg_size":"${POOL_FREE_BYTES}","vg_free":"${POOL_FREE_BYTES}","pv_count":"1","lv_count":"0"}]}]}`;
+  answers.set('vgs', ok(vgs));
+  return answers;
 }
 
 /** Runs the CLI against a fake machine and captures its output. */
