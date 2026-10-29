@@ -1,5 +1,6 @@
 {
   "name": "open-hr",
+  "version": "0.0.0",
   "private": true,
   "description": "Open Hybrid RAID: Synology Hybrid RAID for any Linux box.",
   "license": "MIT",
@@ -10,6 +11,8 @@
   },
   "scripts": {
     "build": "turbo run build",
+    "bundle": "pnpm build && node deploy/bundle.ts",
+    "package": "deploy/package.sh",
     "dev": "scripts/dev.sh",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
@@ -21,6 +24,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.3",
+    "esbuild": "^0.28.2",
     "turbo": "^2.11.10"
   }
 }

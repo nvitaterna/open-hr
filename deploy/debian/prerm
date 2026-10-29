@@ -1,0 +1,13 @@
+#!/bin/sh
+# Stops the services before the package is removed or upgraded. Pools keep
+# working without Open HR: udev and mdadm assemble them and their mount units
+# mount the volumes.
+set -e
+
+if [ -d /run/systemd/system ]; then
+  systemctl stop ohr-web.service ohr-core.service || true
+  case "$1" in
+    remove) systemctl disable ohr-web.service ohr-core.service >/dev/null 2>&1 || true ;;
+    *) ;;
+  esac
+fi

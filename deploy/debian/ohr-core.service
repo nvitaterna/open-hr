@@ -1,0 +1,24 @@
+[Unit]
+Description=Open HR core daemon
+Documentation=https://github.com/nvitaterna/open-hr
+# Pools are assembled by udev and mdadm early in boot (decision 0005); core only reads and changes them.
+After=local-fs.target systemd-udevd.service
+
+[Service]
+Type=simple
+# Runs as root: it partitions drives and runs mdadm and LVM (decision 0007).
+ExecStart=/opt/ohr/node/bin/node /opt/ohr/lib/core.mjs --socket /run/ohr/core.sock --database /var/lib/ohr/ohr.db --group ohr
+# /run/ohr holds the socket: root and the ohr group only.
+RuntimeDirectory=ohr
+RuntimeDirectoryMode=0750
+ExecStartPre=/bin/chgrp ohr /run/ohr
+StateDirectory=ohr
+StateDirectoryMode=0755
+Restart=on-failure
+RestartSec=2s
+# Core needs the devices and /etc, so only these protections apply (decision 0009).
+PrivateTmp=yes
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

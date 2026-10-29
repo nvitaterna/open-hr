@@ -15,3 +15,6 @@ coverage/
 
 # pnpm dev state: private core socket, databases, setup token
 .dev/
+
+# packaging output: bundles, staging tree, and the .deb
+deploy/out/

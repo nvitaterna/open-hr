@@ -1,0 +1,3 @@
+#!/bin/sh
+# The Open HR command line, run with the Node that ships with the package.
+exec /opt/ohr/node/bin/node /opt/ohr/lib/cli.mjs "$@"

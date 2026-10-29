@@ -1,0 +1,3 @@
+#!/bin/sh
+# ohr-web, for `sudo ohr-web setup-token`. The service itself runs from ohr-web.service.
+exec /opt/ohr/node/bin/node /opt/ohr/lib/web.mjs "$@"
