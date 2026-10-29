@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The release workflow runs every job here before it publishes anything.
+  workflow_call:
 
 permissions:
   contents: read
@@ -25,6 +27,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - name: Check the shell scripts
+        run: |
+          shellcheck --version | sed -n 2p
+          shellcheck --severity=warning scripts/*.sh deploy/*.sh \
+            deploy/debian/postinst deploy/debian/prerm deploy/debian/postrm \
+            deploy/debian/ohr deploy/debian/ohr-web
       - run: pnpm typecheck
       - run: pnpm test:coverage
       - run: pnpm build
@@ -58,8 +66,6 @@ jobs:
   package:
     name: Package, install, and remove
     runs-on: ubuntu-latest
-    env:
-      NFPM_VERSION: 2.48.0
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -68,12 +74,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - name: Install nfpm
-        run: |
-          file="nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz"
-          base="https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}"
-          curl -fsSLO "$base/$file"
-          curl -fsSL "$base/checksums.txt" | grep " $file\$" | sha256sum --check -
-          sudo tar -xzf "$file" -C /usr/local/bin nfpm
+        run: deploy/install-nfpm.sh
       - run: pnpm install --frozen-lockfile
       - run: pnpm package
       - name: Install the package

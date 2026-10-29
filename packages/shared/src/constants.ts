@@ -15,6 +15,9 @@ const LVM_EXTENT_MIB = 4;
 export const PROJECT_NAME = 'Open Hybrid RAID';
 export const SHORT_NAME = 'ohr';
 
+/** The release, the same as the root package.json's version (decision 0009). */
+export const VERSION = '0.1.0';
+
 /** Default port for the web UI. */
 export const DEFAULT_WEB_PORT = 7700;
 

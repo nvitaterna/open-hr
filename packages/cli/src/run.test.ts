@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { VERSION } from '@ohr/shared/constants';
+
 import { runCli } from './cli-test-helpers.ts';
 
 describe('ohr', () => {
@@ -22,7 +24,7 @@ describe('ohr', () => {
   });
 
   it('prints the version', async () => {
-    expect((await runCli(['version'])).stdout).toBe('ohr 0.0.0');
+    expect((await runCli(['version'])).stdout).toBe(`ohr ${VERSION}`);
   });
 
   it('rejects unknown commands with exit code 2', async () => {

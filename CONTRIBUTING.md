@@ -84,6 +84,8 @@ packages/core     root daemon: job engine, executors, monitor, database
 packages/web      web server: API, auth, serves the UI
 packages/ui       React UI
 packages/cli      the ohr command
+deploy/           bundling, the .deb, install.sh, and the package smoke test
+scripts/          pnpm dev and the reboot check
 docs/             plan, decision records, user docs
 ```
 
@@ -95,6 +97,19 @@ docs/             plan, decision records, user docs
 - Keep pull requests focused on one change.
 - CI must pass. Run `pnpm check` before pushing.
 - Fill in the pull request template, including how you tested.
+
+## Releasing
+
+1. Set the new version in the root and every workspace `package.json`, and in
+   `VERSION` in `packages/shared/src/constants.ts`. A unit test fails if they
+   differ.
+2. Merge that change to `main`.
+3. Tag the merge commit and push the tag, for example
+   `git tag v0.2.0 && git push origin v0.2.0`.
+
+The release workflow runs every CI job, checks that the tag matches the
+version, builds the `.deb`, and publishes a GitHub release with the `.deb`, its
+SHA-256, and `install.sh`. Every 0.x version is marked as a pre-release.
 
 ## Reporting bugs
 
