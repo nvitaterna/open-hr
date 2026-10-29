@@ -1,7 +1,7 @@
 /**
- * Runs the executors against real loop devices. Needs root, sgdisk, wipefs,
- * and losetup. Run with `pnpm --filter @ohr/core test:integration` as root;
- * the normal test run skips this file.
+ * Runs the executors against real loop devices. Needs root, sgdisk, mdadm,
+ * wipefs, and losetup. Run with `pnpm --filter @ohr/core test:integration` as
+ * root; the normal test run skips this file.
  */
 
 import { mkdtemp, rm, truncate, writeFile } from 'node:fs/promises';
@@ -12,12 +12,19 @@ import process from 'node:process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { LSBLK_COLUMNS, parseLsblk } from '@ohr/shared/parsers/lsblk';
-import { type PlannedDrive, type PlannedPartition, planPool } from '@ohr/shared/planner';
+import type { MdDetail } from '@ohr/shared/parsers/mdadm-detail';
+import {
+  type Layout,
+  type PlannedPartition,
+  type PlannedTier,
+  planPool,
+} from '@ohr/shared/planner';
 
 import { runChecked, runCommand } from '../command-runner.ts';
 import { driveRole } from '../drive-roles.ts';
 import { blockDeviceIo, readLabel, writeLabel } from './label-partition.ts';
-import { partitionDrive } from './partition-drive.ts';
+import { createArray, mdArrayPath } from './md-array.ts';
+import { partitionDrive, partitionPath } from './partition-drive.ts';
 
 const GIB = 1024 ** 3;
 const SIZES = [2 * GIB, 4 * GIB, 4 * GIB];
@@ -37,13 +44,15 @@ interface SfdiskTable {
 
 const isRoot = process.getuid?.() === 0;
 const loops: string[] = [];
+/** Arrays created by the tests, stopped before the loop devices are detached. */
+const arrays: string[] = [];
 let workDir = '';
 
 async function readTable(device: string): Promise<SfdiskTable> {
   return JSON.parse(await runChecked(runCommand, 'sfdisk', ['--json', device])) as SfdiskTable;
 }
 
-function plannedDrives(): readonly PlannedDrive[] {
+function plannedLayout(): Layout {
   const plan = planPool(
     loops.map((path, index) => ({ id: path, sizeBytes: SIZES[index] ?? 0 })),
     'shr1',
@@ -51,7 +60,7 @@ function plannedDrives(): readonly PlannedDrive[] {
   if (!plan.ok) {
     throw new Error(`plan failed: ${plan.error.code}`);
   }
-  return plan.layout.drives;
+  return plan.layout;
 }
 
 function expectedName(partition: PlannedPartition): string {
@@ -73,19 +82,43 @@ async function attachLoopDevices(): Promise<void> {
   }
 }
 
-async function detachLoopDevices(): Promise<void> {
+async function tearDown(): Promise<void> {
+  for (const path of arrays) {
+    await runCommand('mdadm', ['--stop', path]);
+  }
   await Promise.all(loops.map((loop) => runCommand('losetup', ['--detach', loop])));
   if (workDir !== '') {
     await rm(workDir, { recursive: true, force: true });
   }
 }
 
+interface CreatedArray {
+  readonly detail: MdDetail;
+  readonly members: readonly string[];
+  readonly sizeBytes: number;
+}
+
+/** Creates one tier's array from the planned partitions and reads it back. */
+async function createTierArray(tier: PlannedTier): Promise<CreatedArray> {
+  const members = tier.members.map((drive) => partitionPath(drive, tier.partitionNumber));
+  const path = mdArrayPath(POOL, tier.tier);
+  arrays.push(path);
+  const detail = await createArray(runCommand, {
+    poolId: POOL,
+    tier: tier.tier,
+    level: tier.level,
+    members,
+  });
+  const size = await runChecked(runCommand, 'blockdev', ['--getsize64', path]);
+  return { detail, members, sizeBytes: Number(size.trim()) };
+}
+
 describe.skipIf(!isRoot)('executors on loop devices', () => {
   beforeAll(attachLoopDevices);
-  afterAll(detachLoopDevices);
+  afterAll(tearDown);
 
   it('writes exactly the planned partitions', async () => {
-    for (const drive of plannedDrives()) {
+    for (const drive of plannedLayout().drives) {
       await partitionDrive(runCommand, {
         devicePath: drive.id,
         poolId: POOL,
@@ -133,6 +166,23 @@ describe.skipIf(!isRoot)('executors on loop devices', () => {
         kind: 'ok',
         descriptor: fields,
       });
+    }
+  });
+
+  it('creates every planned tier array at the size the planner promised', async () => {
+    const { tiers } = plannedLayout();
+    expect(tiers.map((tier) => tier.level)).toEqual(['raid5', 'raid1']);
+    for (const tier of tiers) {
+      const { detail, members, sizeBytes } = await createTierArray(tier);
+      expect(detail).toMatchObject({
+        level: tier.level,
+        raidDevices: members.length,
+        metadata: '1.2',
+        devName: `ohr_${POOL}_t${tier.tier}`,
+        name: `any:ohr_${POOL}_t${tier.tier}`,
+      });
+      expect(detail.members.map((member) => member.device)).toEqual(members);
+      expect(sizeBytes).toBe(tier.arrayBytes);
     }
   });
 });
