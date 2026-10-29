@@ -64,6 +64,9 @@ check "the UI is served" sh -c "curl -fsk $URL/drives | grep -q '<div id=\"root\
 check "responses carry the CSP" sh -c "curl -fsk -D - -o /dev/null $URL/ | grep -qi \"content-security-policy: default-src 'self'\""
 check "plain HTTP is refused" sh -c "! curl -fs http://127.0.0.1:7700/ >/dev/null"
 check "the CLI reaches core" ohr status
+# ohr-web talks to core as the ohr user. Before setup every API route answers
+# setup-required without asking core, so check that path directly.
+check "the ohr user reaches core" runuser -u ohr -- ohr status
 check "ohr version runs" ohr version
 check "/run/ohr is root:ohr 750" owner_mode /run/ohr "root:ohr 750"
 check "the socket is root:ohr 660" owner_mode /run/ohr/core.sock "root:ohr 660"
