@@ -43,6 +43,11 @@ const lvRowSchema = z.object({
   lv_layout: z.string(),
 });
 
+/** Arguments that make pvs, vgs, and lvs print the JSON these parsers read. Append field names first. */
+export function lvmReportArgs(fields: readonly string[]): string[] {
+  return ['--reportformat', 'json', '--units', 'b', '--nosuffix', '--options', fields.join(',')];
+}
+
 export const PV_FIELDS = ['pv_name', 'vg_name', 'pv_uuid', 'pv_size', 'pv_free'] as const;
 export const VG_FIELDS = [
   'vg_name',

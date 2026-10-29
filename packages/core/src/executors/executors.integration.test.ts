@@ -1,10 +1,10 @@
 /**
  * Runs the executors against real loop devices. Needs root, sgdisk, mdadm,
- * wipefs, and losetup. Run with `pnpm --filter @ohr/core test:integration` as
+ * LVM, mkfs.btrfs, mkfs.ext4, wipefs, and losetup. Run with `pnpm --filter @ohr/core test:integration` as
  * root; the normal test run skips this file.
  */
 
-import { mkdtemp, rm, truncate, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, realpath, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -22,13 +22,27 @@ import {
 
 import { runChecked, runCommand } from '../command-runner.ts';
 import { driveRole } from '../drive-roles.ts';
+import { makeFilesystem } from './filesystem.ts';
 import { blockDeviceIo, readLabel, writeLabel } from './label-partition.ts';
+import {
+  createLogicalVolume,
+  createPhysicalVolume,
+  createVolumeGroup,
+  logicalVolumePath,
+} from './lvm.ts';
 import { createArray, mdArrayPath } from './md-array.ts';
+import { mountVolume, readMount, unmountVolume } from './mount.ts';
 import { partitionDrive, partitionPath } from './partition-drive.ts';
 
+const MIB = 1024 ** 2;
 const GIB = 1024 ** 3;
 const SIZES = [2 * GIB, 4 * GIB, 4 * GIB];
 const POOL = 'itest';
+const VOLUME_GROUP = `ohr-${POOL}`;
+const SCRATCH_BYTES = 8 * MIB;
+const DATA_SUBVOLUME = / path @data$/mu;
+const SNAPSHOTS_SUBVOLUME = / path \.snapshots$/mu;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 interface SfdiskPartition {
   readonly node: string;
@@ -46,6 +60,10 @@ const isRoot = process.getuid?.() === 0;
 const loops: string[] = [];
 /** Arrays created by the tests, stopped before the loop devices are detached. */
 const arrays: string[] = [];
+/** Set once the volume group exists, so teardown removes it before stopping the arrays. */
+let volumeGroupCreated = false;
+/** Mount points still mounted, unmounted first in teardown. */
+const mounts: string[] = [];
 let workDir = '';
 
 async function readTable(device: string): Promise<SfdiskTable> {
@@ -83,6 +101,12 @@ async function attachLoopDevices(): Promise<void> {
 }
 
 async function tearDown(): Promise<void> {
+  for (const mountPoint of mounts) {
+    await runCommand('umount', [mountPoint]);
+  }
+  if (volumeGroupCreated) {
+    await runCommand('vgremove', ['--force', VOLUME_GROUP]);
+  }
   for (const path of arrays) {
     await runCommand('mdadm', ['--stop', path]);
   }
@@ -184,5 +208,87 @@ describe.skipIf(!isRoot)('executors on loop devices', () => {
       expect(detail.members.map((member) => member.device)).toEqual(members);
       expect(sizeBytes).toBe(tier.arrayBytes);
     }
+  });
+
+  it('puts the arrays under one volume group of the size the planner promised', async () => {
+    const layout = plannedLayout();
+    const devices: string[] = [];
+    for (const tier of layout.tiers) {
+      const path = mdArrayPath(POOL, tier.tier);
+      const pv = await createPhysicalVolume(runCommand, path);
+      expect(pv).toMatchObject({ device: await realpath(path), volumeGroup: null });
+      expect(pv.sizeBytes).toBe(tier.arrayBytes);
+      devices.push(path);
+    }
+    volumeGroupCreated = true;
+    const vg = await createVolumeGroup(runCommand, { poolId: POOL, physicalVolumes: devices });
+    expect(vg).toMatchObject({
+      name: VOLUME_GROUP,
+      physicalVolumeCount: devices.length,
+      logicalVolumeCount: 0,
+    });
+    expect(vg.sizeBytes).toBe(layout.usableBytes);
+    expect(vg.freeBytes).toBe(layout.usableBytes);
+  });
+
+  it('creates a volume of an exact size and one from all free space', async () => {
+    const { usableBytes } = plannedLayout();
+    const scratch = await createLogicalVolume(runCommand, {
+      poolId: POOL,
+      name: 'scratch',
+      size: { kind: 'bytes', bytes: SCRATCH_BYTES },
+    });
+    expect(scratch).toMatchObject({
+      name: 'scratch',
+      volumeGroup: VOLUME_GROUP,
+      sizeBytes: SCRATCH_BYTES,
+      path: logicalVolumePath(POOL, 'scratch'),
+      layout: 'linear',
+    });
+    const data = await createLogicalVolume(runCommand, {
+      poolId: POOL,
+      name: 'data',
+      size: { kind: 'all-free' },
+    });
+    expect(data).toMatchObject({ name: 'data', path: logicalVolumePath(POOL, 'data') });
+    expect(data.sizeBytes).toBe(usableBytes - SCRATCH_BYTES);
+  });
+
+  it('formats a btrfs volume with its subvolumes and mounts the data subvolume', async () => {
+    const device = logicalVolumePath(POOL, 'data');
+    const filesystem = await makeFilesystem(runCommand, { device, type: 'btrfs', name: 'data' });
+    expect(filesystem).toMatchObject({ type: 'btrfs', label: 'data' });
+    expect(filesystem.uuid).toMatch(UUID);
+    const mountPoint = join(workDir, 'data');
+    mounts.push(mountPoint);
+    const mount = await mountVolume(runCommand, { device, type: 'btrfs', mountPoint });
+    expect(mount).toMatchObject({ target: mountPoint, fsType: 'btrfs' });
+    expect(mount.source.endsWith('[/@data]')).toBe(true);
+    expect(mount.options).toContain('subvol=/@data');
+    expect(await realpath(mount.device)).toBe(await realpath(device));
+    const subvolumes = await runChecked(runCommand, 'btrfs', ['subvolume', 'list', mountPoint]);
+    expect(subvolumes).toMatch(DATA_SUBVOLUME);
+    expect(subvolumes).toMatch(SNAPSHOTS_SUBVOLUME);
+    await writeFile(join(mountPoint, 'hello.txt'), 'hello');
+    await unmountVolume(runCommand, mountPoint);
+    mounts.pop();
+    expect(await readdir(mountPoint)).toEqual([]);
+    await expect(readMount(runCommand, mountPoint)).rejects.toThrow();
+  });
+
+  it('formats an ext4 volume and mounts it', async () => {
+    const device = logicalVolumePath(POOL, 'scratch');
+    const filesystem = await makeFilesystem(runCommand, { device, type: 'ext4', name: 'scratch' });
+    expect(filesystem).toMatchObject({ type: 'ext4', label: 'scratch' });
+    expect(filesystem.uuid).toMatch(UUID);
+    const mountPoint = join(workDir, 'scratch');
+    mounts.push(mountPoint);
+    const mount = await mountVolume(runCommand, { device, type: 'ext4', mountPoint });
+    expect(mount).toMatchObject({ target: mountPoint, fsType: 'ext4' });
+    expect(await realpath(mount.device)).toBe(await realpath(device));
+    await writeFile(join(mountPoint, 'hello.txt'), 'hello');
+    await unmountVolume(runCommand, mountPoint);
+    mounts.pop();
+    expect(await readdir(mountPoint)).toEqual([]);
   });
 });
