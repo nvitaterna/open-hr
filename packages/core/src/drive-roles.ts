@@ -2,20 +2,13 @@
 
 import { isOhrPartitionLabel } from '@ohr/shared/naming';
 import { type BlockDevice, flattenBlockDevices } from '@ohr/shared/parsers/lsblk';
+import type { DriveRole } from '@ohr/shared/system-snapshot';
 
 /** Mount points that mean a drive holds the running operating system. */
 const SYSTEM_MOUNTS = new Set(['/', '/boot', '/boot/efi', '/usr', '/var', '/home', '[SWAP]']);
 
 /** Kernel devices that look like disks but are not physical drives. */
 const VIRTUAL_DISK = /^(?:zram|ram|nbd|loop)\d/u;
-
-/**
- * - system: holds the running operating system. Never touched.
- * - ohr: has partitions written by Open HR.
- * - in-use: has partitions, a filesystem, or other signatures. Needs wiping before use.
- * - empty: nothing on it.
- */
-export type DriveRole = 'system' | 'ohr' | 'in-use' | 'empty';
 
 /** Physical drives at the top of an lsblk tree. */
 export function physicalDrives(devices: readonly BlockDevice[]): BlockDevice[] {

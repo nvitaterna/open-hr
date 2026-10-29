@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { systemSnapshotSchema } from '@ohr/shared/system-snapshot';
+
 import {
   exampleShr1Answers,
   exampleShr1Files,
@@ -24,6 +26,11 @@ async function snapshot() {
 }
 
 describe('readSystemState: the worked example', () => {
+  it('produces a snapshot the shared schema accepts unchanged, SMART included', async () => {
+    const { state } = await snapshot();
+    expect(systemSnapshotSchema.parse(state)).toEqual(state);
+  });
+
   it('finds every physical drive and its role', async () => {
     const { state } = await snapshot();
     expect(state.drives.map((drive) => [drive.device.name, drive.role])).toEqual([

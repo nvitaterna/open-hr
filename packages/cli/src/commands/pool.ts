@@ -5,12 +5,13 @@ import { runChecked } from '@ohr/core/command-runner';
 import { driveRole } from '@ohr/core/drive-roles';
 import type { JobDefinition } from '@ohr/core/jobs/engine';
 import { buildPoolCreateJob } from '@ohr/core/jobs/pool-create';
-import { type DriveState, readSystemState, type SystemSnapshot } from '@ohr/core/system-state';
+import { readSystemState } from '@ohr/core/system-state';
 import { DEFAULT_DATABASE_PATH, type Redundancy } from '@ohr/shared/constants';
 import { isValidPoolId, mdArrayName, volumeGroupName } from '@ohr/shared/naming';
 import { LSBLK_COLUMNS, parseLsblk } from '@ohr/shared/parsers/lsblk';
 import { describePlanError, planPool } from '@ohr/shared/planner';
 import type { PoolCreateInput } from '@ohr/shared/pool-create-input';
+import type { DriveState, SystemSnapshot } from '@ohr/shared/system-snapshot';
 
 import { EXIT_FAILURE, type Io, UsageError } from '../io.ts';
 import { confirmed, printSteps, runConfirmedJob } from '../jobs.ts';
