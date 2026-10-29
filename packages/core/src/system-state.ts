@@ -8,6 +8,7 @@ import { type BlockDevice, LSBLK_COLUMNS, parseLsblk } from '@ohr/shared/parsers
 import {
   type LogicalVolume,
   LV_FIELDS,
+  lvmReportArgs,
   type PhysicalVolume,
   PV_FIELDS,
   parseLvs,
@@ -98,10 +99,6 @@ async function readMdArrays(context: Context): Promise<MdArrayState[]> {
       return { name: status.name, path, status, detail };
     }),
   );
-}
-
-function lvmReportArgs(fields: readonly string[]): string[] {
-  return ['--reportformat', 'json', '--units', 'b', '--nosuffix', '--options', fields.join(',')];
 }
 
 async function readLvm(

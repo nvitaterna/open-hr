@@ -1,10 +1,10 @@
 /**
  * Runs the executors against real loop devices. Needs root, sgdisk, mdadm,
- * wipefs, and losetup. Run with `pnpm --filter @ohr/core test:integration` as
+ * LVM, wipefs, and losetup. Run with `pnpm --filter @ohr/core test:integration` as
  * root; the normal test run skips this file.
  */
 
-import { mkdtemp, rm, truncate, writeFile } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -23,12 +23,21 @@ import {
 import { runChecked, runCommand } from '../command-runner.ts';
 import { driveRole } from '../drive-roles.ts';
 import { blockDeviceIo, readLabel, writeLabel } from './label-partition.ts';
+import {
+  createLogicalVolume,
+  createPhysicalVolume,
+  createVolumeGroup,
+  logicalVolumePath,
+} from './lvm.ts';
 import { createArray, mdArrayPath } from './md-array.ts';
 import { partitionDrive, partitionPath } from './partition-drive.ts';
 
+const MIB = 1024 ** 2;
 const GIB = 1024 ** 3;
 const SIZES = [2 * GIB, 4 * GIB, 4 * GIB];
 const POOL = 'itest';
+const VOLUME_GROUP = `ohr-${POOL}`;
+const SCRATCH_BYTES = 8 * MIB;
 
 interface SfdiskPartition {
   readonly node: string;
@@ -46,6 +55,8 @@ const isRoot = process.getuid?.() === 0;
 const loops: string[] = [];
 /** Arrays created by the tests, stopped before the loop devices are detached. */
 const arrays: string[] = [];
+/** Set once the volume group exists, so teardown removes it before stopping the arrays. */
+let volumeGroupCreated = false;
 let workDir = '';
 
 async function readTable(device: string): Promise<SfdiskTable> {
@@ -83,6 +94,9 @@ async function attachLoopDevices(): Promise<void> {
 }
 
 async function tearDown(): Promise<void> {
+  if (volumeGroupCreated) {
+    await runCommand('vgremove', ['--force', VOLUME_GROUP]);
+  }
   for (const path of arrays) {
     await runCommand('mdadm', ['--stop', path]);
   }
@@ -184,5 +198,49 @@ describe.skipIf(!isRoot)('executors on loop devices', () => {
       expect(detail.members.map((member) => member.device)).toEqual(members);
       expect(sizeBytes).toBe(tier.arrayBytes);
     }
+  });
+
+  it('puts the arrays under one volume group of the size the planner promised', async () => {
+    const layout = plannedLayout();
+    const devices: string[] = [];
+    for (const tier of layout.tiers) {
+      const path = mdArrayPath(POOL, tier.tier);
+      const pv = await createPhysicalVolume(runCommand, path);
+      expect(pv).toMatchObject({ device: await realpath(path), volumeGroup: null });
+      expect(pv.sizeBytes).toBe(tier.arrayBytes);
+      devices.push(path);
+    }
+    volumeGroupCreated = true;
+    const vg = await createVolumeGroup(runCommand, { poolId: POOL, physicalVolumes: devices });
+    expect(vg).toMatchObject({
+      name: VOLUME_GROUP,
+      physicalVolumeCount: devices.length,
+      logicalVolumeCount: 0,
+    });
+    expect(vg.sizeBytes).toBe(layout.usableBytes);
+    expect(vg.freeBytes).toBe(layout.usableBytes);
+  });
+
+  it('creates a volume of an exact size and one from all free space', async () => {
+    const { usableBytes } = plannedLayout();
+    const scratch = await createLogicalVolume(runCommand, {
+      poolId: POOL,
+      name: 'scratch',
+      size: { kind: 'bytes', bytes: SCRATCH_BYTES },
+    });
+    expect(scratch).toMatchObject({
+      name: 'scratch',
+      volumeGroup: VOLUME_GROUP,
+      sizeBytes: SCRATCH_BYTES,
+      path: logicalVolumePath(POOL, 'scratch'),
+      layout: 'linear',
+    });
+    const data = await createLogicalVolume(runCommand, {
+      poolId: POOL,
+      name: 'data',
+      size: { kind: 'all-free' },
+    });
+    expect(data).toMatchObject({ name: 'data', path: logicalVolumePath(POOL, 'data') });
+    expect(data.sizeBytes).toBe(usableBytes - SCRATCH_BYTES);
   });
 });
