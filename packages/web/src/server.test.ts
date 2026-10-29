@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { CoreLink } from './core-link.ts';
 import { LoginLimiter } from './login-limiter.ts';
 import { buildWebServer } from './server.ts';
 import { writeSetupToken } from './setup-token.ts';
@@ -22,6 +23,7 @@ let token: string;
 let store: WebStore;
 let app: FastifyInstance;
 let clock: Date;
+let core: CoreLink;
 
 interface Call {
   readonly method?: 'GET' | 'POST';
@@ -84,8 +86,11 @@ beforeEach(async () => {
   token = await writeSetupToken(tokenPath);
   store = WebStore.open(':memory:');
   clock = new Date('2026-10-29T12:00:00.000Z');
+  // Nothing listens there: these tests never reach core.
+  core = new CoreLink({ socketPath: join(directory, 'core.sock') });
   app = await buildWebServer({
     store,
+    core,
     limiter: new LoginLimiter(() => clock.getTime()),
     setupTokenPath: tokenPath,
     secureCookies: true,
@@ -96,6 +101,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await app.close();
+  await core.close();
   store.close();
   await rm(directory, { recursive: true, force: true });
 });

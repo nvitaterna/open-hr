@@ -315,6 +315,9 @@ importers:
       '@fastify/cookie':
         specifier: 'catalog:'
         version: 11.1.5
+      '@ohr/rpc':
+        specifier: workspace:*
+        version: link:../rpc
       '@ohr/shared':
         specifier: workspace:*
         version: link:../shared

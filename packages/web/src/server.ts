@@ -1,6 +1,7 @@
 /**
  * ohr-web's HTTP server (plan section 5.5 and decision 0008): the account
- * endpoints and the rules every API request goes through.
+ * endpoints, the rules every API request goes through, and the routes over
+ * ohr-core from api-routes.ts and event-stream.ts.
  *
  * - Until the admin account exists, every API route except setup answers
  *   409 setup-required.
@@ -22,12 +23,17 @@ import fastify, {
 import { ZodError, type z } from 'zod';
 
 import {
+  type ApiError,
   loginRequestSchema,
   type Me,
   type SetupStatus,
   setupRequestSchema,
 } from '@ohr/shared/web-api';
 
+import { ApiProblem, HTTP } from './api-problem.ts';
+import { registerApiRoutes } from './api-routes.ts';
+import type { CoreLink } from './core-link.ts';
+import { registerEventStream } from './event-stream.ts';
 import type { LoginLimiter } from './login-limiter.ts';
 import { hashPassword, verifyPassword } from './passwords.ts';
 import { checkSetupToken, removeSetupToken } from './setup-token.ts';
@@ -46,20 +52,6 @@ const JSON_TYPE = 'application/json';
 const DUMMY_HASH =
   '$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
-const HTTP = {
-  ok: 200,
-  created: 201,
-  noContent: 204,
-  badRequest: 400,
-  unauthorized: 401,
-  forbidden: 403,
-  notFound: 404,
-  conflict: 409,
-  unsupportedMediaType: 415,
-  tooManyRequests: 429,
-  internalError: 500,
-} as const;
-
 declare module 'fastify' {
   interface FastifyContextConfig {
     /** Reachable without a session. */
@@ -68,18 +60,6 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** The signed-in user, set for private routes. */
     username: string | null;
-  }
-}
-
-class ApiProblem extends Error {
-  override readonly name = 'ApiProblem';
-  readonly statusCode: number;
-  readonly code: string;
-
-  constructor(statusCode: number, code: string, message: string) {
-    super(message);
-    this.statusCode = statusCode;
-    this.code = code;
   }
 }
 
@@ -133,6 +113,8 @@ function createApp(options: WebServerOptions): FastifyInstance {
 export interface WebServerOptions {
   readonly store: WebStore;
   readonly limiter: LoginLimiter;
+  /** The connection to ohr-core that the system, pool, job, and event routes use. */
+  readonly core: CoreLink;
   /** The file holding the one-time setup token. */
   readonly setupTokenPath: string;
   /** Cookies are Secure except when serving plain HTTP for development. */
@@ -141,6 +123,8 @@ export interface WebServerOptions {
   readonly tls: { readonly key: Buffer; readonly cert: Buffer } | null;
   readonly now?: () => Date;
   readonly logger?: boolean;
+  /** How often an idle event stream sends a keepalive comment. */
+  readonly keepaliveMs?: number;
 }
 
 /** Builds the server without listening, so tests can drive it with inject(). */
@@ -221,7 +205,11 @@ export async function buildWebServer(options: WebServerOptions): Promise<Fastify
 
   app.setErrorHandler((error: FastifyError | ApiProblem | ZodError, request, reply) => {
     if (error instanceof ApiProblem) {
-      return reply.code(error.statusCode).send({ error: error.code, message: error.message });
+      const body: ApiError = { error: error.code, message: error.message };
+      if (error.reasons.length > 0) {
+        body.reasons = [...error.reasons];
+      }
+      return reply.code(error.statusCode).send(body);
     }
     if (error instanceof ZodError) {
       return reply
@@ -306,6 +294,9 @@ export async function buildWebServer(options: WebServerOptions): Promise<Fastify
   });
 
   app.get('/api/v1/auth/me', (request): Me => ({ username: request.username ?? '' }));
+
+  registerApiRoutes(app, options.core);
+  registerEventStream(app, options.core, options.keepaliveMs);
 
   return app;
 }
