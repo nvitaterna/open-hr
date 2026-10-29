@@ -17,3 +17,4 @@ Copy [0000-template.md](0000-template.md) to start a new one.
 | 0007   | [Core daemon, RPC protocol, and the CLI as a client](0007-core-daemon-and-rpc.md)   | Accepted |
 | 0008   | [Web server, authentication, and the REST and SSE API](0008-web-auth-and-api.md)    | Accepted |
 | 0009   | [Packaging, install script, and the 0.1 release](0009-packaging-and-release.md)     | Accepted |
+| 0010   | [Web UI: build, serving, live updates, and development](0010-web-ui.md)             | Accepted |

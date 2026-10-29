@@ -5,7 +5,7 @@
  */
 
 import { chown, readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import process from 'node:process';
 import { parseArgs } from 'node:util';
 
@@ -39,6 +39,7 @@ Options:
   --data <dir>        Web data: database and setup token (default ${DEFAULT_DATA_DIR})
   --tls <dir>         Directory with cert.pem and key.pem (default ${DEFAULT_TLS_DIR})
   --socket <path>     ohr-core's socket (default ${CORE_SOCKET_PATH})
+  --ui <dir>          The UI build to serve (default: none, the API only)
   --insecure-http     Plain HTTP on ${LOCALHOST}, for development only
   --help              Show this message`;
 
@@ -60,6 +61,7 @@ function options(args: readonly string[]): {
     data: string;
     tls: string;
     socket: string;
+    ui?: string;
     'insecure-http': boolean;
     help: boolean;
   };
@@ -73,12 +75,20 @@ function options(args: readonly string[]): {
       data: { type: 'string', default: DEFAULT_DATA_DIR },
       tls: { type: 'string', default: DEFAULT_TLS_DIR },
       socket: { type: 'string', default: CORE_SOCKET_PATH },
+      ui: { type: 'string' },
       'insecure-http': { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
     },
     strict: true,
     allowPositionals: true,
   });
+}
+
+function uiDirectory(dir: string | undefined): string | null {
+  if (dir === undefined) {
+    return null;
+  }
+  return resolve(dir);
 }
 
 /** Writes a token the ohr user can read: owned like the data directory, mode 0600. */
@@ -116,6 +126,8 @@ async function serve(values: ReturnType<typeof options>['values']): Promise<numb
     store,
     limiter: new LoginLimiter(),
     core,
+    // The static file server needs an absolute path.
+    uiDir: uiDirectory(values.ui),
     setupTokenPath: join(values.data, TOKEN_FILE),
     secureCookies: !insecure,
     tls,

@@ -12,3 +12,6 @@ coverage/
 # loop device images from local integration testing
 *.img
 .turbo/
+
+# pnpm dev state: private core socket, databases, setup token
+.dev/

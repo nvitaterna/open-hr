@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "catalog:",
+    "@fastify/static": "catalog:",
     "@ohr/rpc": "workspace:*",
     "@ohr/shared": "workspace:*",
     "fastify": "catalog:",
