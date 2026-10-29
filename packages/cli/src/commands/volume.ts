@@ -2,7 +2,7 @@ import { parseArgs } from 'node:util';
 
 import { assertMountPoint, defaultMountPoint } from '@ohr/core/executors/mount';
 import { buildVolumeCreateJob } from '@ohr/core/jobs/volume-create';
-import { readSystemState, type SystemSnapshot } from '@ohr/core/system-state';
+import { readSystemState } from '@ohr/core/system-state';
 import {
   DEFAULT_DATABASE_PATH,
   FILESYSTEMS,
@@ -11,6 +11,7 @@ import {
 } from '@ohr/shared/constants';
 import { isValidPoolId, volumeGroupName } from '@ohr/shared/naming';
 import { alignDown, formatSize, parseSize, SizeParseError } from '@ohr/shared/sizes';
+import type { SystemSnapshot } from '@ohr/shared/system-snapshot';
 import type { VolumeCreateInput } from '@ohr/shared/volume-create-input';
 import { isValidVolumeName } from '@ohr/shared/volume-name';
 

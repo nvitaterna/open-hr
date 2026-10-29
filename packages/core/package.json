@@ -5,6 +5,9 @@
   "description": "Root daemon: job engine, executors, monitor, database.",
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "ohr-core": "./dist/daemon/main.js"
+  },
   "exports": {
     "./*": {
       "types": "./dist/*.d.ts",
@@ -22,7 +25,8 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
-    "@ohr/shared": "workspace:*"
+    "@ohr/shared": "workspace:*",
+    "@ohr/rpc": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

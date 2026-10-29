@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto';
 
-import type { SystemSnapshot } from '../system-state.ts';
+import type { SystemSnapshot } from '@ohr/shared/system-snapshot';
 
 function sorted(values: readonly string[]): string[] {
   return [...values].sort((a, b) => a.localeCompare(b));

@@ -18,11 +18,12 @@ import {
   type VolumeGroup,
 } from '@ohr/shared/parsers/lvm';
 import { type MdDetail, parseMdadmDetail } from '@ohr/shared/parsers/mdadm-detail';
-import { type MdstatArray, parseMdstat } from '@ohr/shared/parsers/mdstat';
+import { parseMdstat } from '@ohr/shared/parsers/mdstat';
 import { parseSmartctl, type SmartReport } from '@ohr/shared/parsers/smartctl';
+import type { DriveState, MdArrayState, SystemSnapshot } from '@ohr/shared/system-snapshot';
 
 import { type CommandRunner, describeFailure, type FileReader } from './command-runner.ts';
-import { type DriveRole, driveRole, physicalDrives } from './drive-roles.ts';
+import { driveRole, physicalDrives } from './drive-roles.ts';
 
 const MDSTAT_PATH = '/proc/mdstat';
 const SMART_TIMEOUT_MS = 60_000;
@@ -142,34 +143,6 @@ async function readSmart(context: Context, device: BlockDevice): Promise<SmartRe
 
 export class SystemStateError extends Error {
   override readonly name = 'SystemStateError';
-}
-
-export interface DriveState {
-  /** The drive and everything below it, as lsblk reports it. */
-  readonly device: BlockDevice;
-  readonly role: DriveRole;
-  /** Null when SMART was not requested or could not be read. */
-  readonly smart: SmartReport | null;
-}
-
-export interface MdArrayState {
-  /** Kernel name, such as "md127". */
-  readonly name: string;
-  readonly path: string;
-  readonly status: MdstatArray;
-  /** Null when mdadm could not be run, for example without root. */
-  readonly detail: MdDetail | null;
-}
-
-export interface SystemSnapshot {
-  readonly drives: readonly DriveState[];
-  readonly mdArrays: readonly MdArrayState[];
-  readonly physicalVolumes: readonly PhysicalVolume[];
-  readonly volumeGroups: readonly VolumeGroup[];
-  readonly logicalVolumes: readonly LogicalVolume[];
-  readonly mounts: readonly Mount[];
-  /** Things that could not be read. The snapshot is still usable but incomplete. */
-  readonly warnings: readonly string[];
 }
 
 export interface ReadOptions {

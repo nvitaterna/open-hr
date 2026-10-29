@@ -71,7 +71,7 @@
   },
   "overrides": [
     {
-      "includes": ["packages/core/**", "packages/web/**", "packages/cli/**"],
+      "includes": ["packages/core/**", "packages/rpc/**", "packages/web/**", "packages/cli/**"],
       "linter": {
         "rules": {
           "correctness": {

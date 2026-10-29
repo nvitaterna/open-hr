@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import type { SystemSnapshot } from '@ohr/shared/system-snapshot';
+
 import { exampleShr1Answers, exampleShr1Files, fakeRunner } from '../fake-system-test-helpers.ts';
-import { readSystemState, type SystemSnapshot } from '../system-state.ts';
+import { readSystemState } from '../system-state.ts';
 import { systemStateHash } from './state-hash.ts';
 
 const HEX_SHA256 = /^[0-9a-f]{64}$/u;

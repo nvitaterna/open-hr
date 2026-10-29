@@ -13,8 +13,9 @@ import {
 import { JobConflictError } from '@ohr/core/jobs/job-conflict-error';
 import { systemStateHash } from '@ohr/core/jobs/state-hash';
 import { JobStore } from '@ohr/core/jobs/store';
-import { readSystemState, type SystemSnapshot } from '@ohr/core/system-state';
+import { readSystemState } from '@ohr/core/system-state';
 import type { JobRecord } from '@ohr/shared/jobs';
+import type { SystemSnapshot } from '@ohr/shared/system-snapshot';
 
 import { EXIT_FAILURE, EXIT_OK, type Io } from './io.ts';
 

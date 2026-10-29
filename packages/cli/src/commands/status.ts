@@ -1,13 +1,9 @@
 import { parseArgs } from 'node:util';
 
-import {
-  type DriveState,
-  type MdArrayState,
-  readSystemState,
-  type SystemSnapshot,
-} from '@ohr/core/system-state';
+import { readSystemState } from '@ohr/core/system-state';
 import { isDegraded, type MdstatSync } from '@ohr/shared/parsers/mdstat';
 import { formatSize } from '@ohr/shared/sizes';
+import type { DriveState, MdArrayState, SystemSnapshot } from '@ohr/shared/system-snapshot';
 
 import { EXIT_OK, type Io } from '../io.ts';
 import { formatTable } from '../table.ts';

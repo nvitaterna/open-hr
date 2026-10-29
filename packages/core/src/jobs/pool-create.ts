@@ -20,9 +20,10 @@ import { parseMdadmDetail } from '@ohr/shared/parsers/mdadm-detail';
 import type { MdArrayDefinition } from '@ohr/shared/parsers/mdadm-scan';
 import type { PlannedDrive, PlannedPartition, PlannedTier } from '@ohr/shared/planner';
 import type { PoolCreateDrive, PoolCreateInput } from '@ohr/shared/pool-create-input';
+import type { DriveRole } from '@ohr/shared/system-snapshot';
 
 import type { CommandRunner } from '../command-runner.ts';
-import { type DriveRole, driveRole } from '../drive-roles.ts';
+import { driveRole } from '../drive-roles.ts';
 import {
   type BlockDeviceIo,
   blockDeviceIo,
