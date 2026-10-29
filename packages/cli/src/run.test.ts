@@ -14,6 +14,13 @@ describe('ohr', () => {
     expect((await runCli(['help', 'plan'])).stdout).toContain('--redundancy');
   });
 
+  it('prints help for a command given --help', async () => {
+    const result = await runCli(['plan', '--help']);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('--redundancy');
+    expect(result.stderr).toBe('');
+  });
+
   it('prints the version', async () => {
     expect((await runCli(['version'])).stdout).toBe('ohr 0.0.0');
   });

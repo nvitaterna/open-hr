@@ -1,13 +1,14 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { MIN_DRIVES, MIN_TIER_BYTES, type Redundancy } from './constants.ts';
+import { LVM_EXTENT_BYTES, MIN_DRIVES, MIN_TIER_BYTES, type Redundancy } from './constants.ts';
 import { minimumDriveBytes, planPool } from './planner.ts';
 import {
   GIB,
   idealUsable,
   layoutOf,
   layoutViolations,
+  MIB,
   TB,
   tierAreaCapacity,
 } from './planner-test-helpers.ts';
@@ -40,13 +41,20 @@ const byteDrivesArb = drivesArb(
 );
 
 describe('planPool properties', () => {
-  it('gives a valid layout with exactly the ideal capacity for whole-GiB drives', () => {
+  it('gives a valid layout within md and LVM overhead of the ideal capacity for whole-GiB drives', () => {
     fc.assert(
       fc.property(gibDrivesArb, ({ redundancy, drives }) => {
         const layout = layoutOf(planPool(drives, redundancy));
         expect(layoutViolations(layout, drives)).toEqual([]);
         const capacities = drives.map((drive) => tierAreaCapacity(drive.sizeBytes));
-        expect(layout.usableBytes).toBe(idealUsable(capacities, redundancy));
+        // md keeps at most 129 MiB per member, LVM up to one stripe and one extent per tier.
+        const overhead = layout.tiers.reduce(
+          (sum, tier) => sum + tier.members.length * 130 * MIB + LVM_EXTENT_BYTES,
+          0,
+        );
+        const ideal = idealUsable(capacities, redundancy);
+        expect(layout.usableBytes).toBeLessThanOrEqual(ideal);
+        expect(layout.usableBytes).toBeGreaterThan(ideal - overhead);
       }),
     );
   });

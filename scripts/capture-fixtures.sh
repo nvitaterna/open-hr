@@ -35,9 +35,21 @@ for md in /dev/md[0-9]*; do
   run "mdadm-detail-$(basename "$md").txt" mdadm --detail --export "$md"
 done
 
+# smartctl's exit status is a bit mask. Only bits 0 and 1 mean the output is
+# unusable; the others report drive conditions, which the fixtures should keep.
+smart() {
+  local name="$1" status=0
+  smartctl --json --all "/dev/$name" >"$out/smartctl-$name.json" 2>"$out/smartctl-$name.json.stderr" || status=$?
+  if (( status & 3 )); then
+    echo "warning: smartctl failed on /dev/$name (exit $status), see $out/smartctl-$name.json.stderr" >&2
+  else
+    rm -f "$out/smartctl-$name.json.stderr"
+  fi
+}
+
 while read -r name type; do
   [[ "$type" == "disk" ]] || continue
-  run "smartctl-$name.json" smartctl --json --all "/dev/$name" || true
+  smart "$name"
 done < <(lsblk --nodeps --noheadings --output NAME,TYPE)
 
 {

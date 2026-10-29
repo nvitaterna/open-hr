@@ -9,6 +9,8 @@ const ALIGNMENT_MIB = 1;
 const END_RESERVE_MIB = 64;
 const LABEL_PARTITION_MIB = 16;
 const MIN_TIER_GIB = 1;
+const MD_CHUNK_KIB = 512;
+const LVM_EXTENT_MIB = 4;
 
 export const PROJECT_NAME = 'Open Hybrid RAID';
 export const SHORT_NAME = 'ohr';
@@ -50,6 +52,12 @@ export const LABEL_PARTITION_BYTES = LABEL_PARTITION_MIB * BYTES_PER_MIB;
 
 /** Where the first partition starts. The GPT header and table live before it. */
 export const FIRST_PARTITION_OFFSET_BYTES = PARTITION_ALIGNMENT_BYTES;
+
+/** md chunk size for RAID5 and RAID6 tiers. */
+export const MD_CHUNK_BYTES = MD_CHUNK_KIB * BYTES_PER_KIB;
+
+/** LVM physical extent size, the unit volume groups allocate in. LVM's default. */
+export const LVM_EXTENT_BYTES = LVM_EXTENT_MIB * BYTES_PER_MIB;
 
 /**
  * Smallest tier worth building an array for. Drives whose usable sizes differ

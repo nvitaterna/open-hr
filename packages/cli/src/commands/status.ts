@@ -40,17 +40,21 @@ function arrayState(array: MdArrayState): string {
   if (!status.active) {
     return 'inactive';
   }
-  const parts: string[] = [];
+  // A new RAID5 or RAID6 is built by rebuilding onto its last member, so it
+  // looks degraded until then, exactly like an array rebuilding after a failure.
   if (isDegraded(status)) {
-    parts.push('DEGRADED');
+    if (status.sync === null) {
+      return 'DEGRADED';
+    }
+    if (status.sync.state === 'running') {
+      return `rebuilding ${syncProgress(status.sync)}`;
+    }
+    return 'rebuild queued';
   }
   if (status.sync !== null) {
-    parts.push(`${status.sync.action} ${syncProgress(status.sync)}`);
+    return `${status.sync.action} ${syncProgress(status.sync)}`;
   }
-  if (parts.length === 0) {
-    parts.push('healthy');
-  }
-  return parts.join(', ');
+  return 'healthy';
 }
 
 function memberList(array: MdArrayState): string {

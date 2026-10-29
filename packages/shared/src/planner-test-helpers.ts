@@ -1,5 +1,6 @@
 /** Helpers shared by the planner's example tests and property tests. Not part of the package API. */
 
+import type { RaidLevel } from './array-capacity.ts';
 import {
   END_OF_DRIVE_RESERVE_BYTES,
   FAULT_TOLERANCE,
@@ -16,7 +17,6 @@ import {
   type PlannedDrive,
   type PlannedPartition,
   type PlanResult,
-  type RaidLevel,
 } from './planner.ts';
 import { alignDown } from './sizes.ts';
 

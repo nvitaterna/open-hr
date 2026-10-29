@@ -25,6 +25,29 @@ describe('planPool: capacity table from the plan, appendix A', () => {
   });
 });
 
+describe('planPool: matches a real pool', () => {
+  // Measured on the VM behind fixtures/vm-shr1: mdadm 4.4 and LVM 2.03.31
+  // on drives of 2, 4, 4, 6, 8, and 8 GiB.
+  const sizes = [2, 4, 4, 6, 8, 8].map((gib, index) => ({ id: `d${index}`, sizeBytes: gib * GIB }));
+  const layout = layoutOf(planPool(sizes, 'shr1'));
+
+  it('predicts each md array size', () => {
+    expect(layout.tiers.map((tier) => tier.arrayBytes)).toEqual([
+      10_302_259_200, 8_577_351_680, 4_288_675_840, 2_144_337_920,
+    ]);
+  });
+
+  it('predicts the volume group size exactly', () => {
+    expect(layout.usableBytes).toBe(25_300_041_728);
+  });
+
+  it('allows for 129 MiB of md data offset per member on large drives', () => {
+    const big = layoutOf(planPool(drives([4, 4]), 'shr1'));
+    const [tier] = big.tiers;
+    expect(tier?.arrayBytes).toBe((tier?.sliceBytes ?? 0) - 129 * MIB);
+  });
+});
+
 describe('planPool: worked example from the plan, 4, 8, 8, 12 TB as SHR-1', () => {
   const layout = layoutOf(planPool(drives([4, 8, 8, 12]), 'shr1'));
 

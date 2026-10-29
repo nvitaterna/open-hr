@@ -61,6 +61,9 @@ export async function run(args: readonly string[], io: Io): Promise<number> {
     io.stderr(`Unknown command: ${name}\n\n${USAGE}`);
     return EXIT_USAGE;
   }
+  if (rest.includes('--help') || rest.includes('-h')) {
+    return help(name, io);
+  }
   try {
     return await command.handler(rest, io);
   } catch (error) {

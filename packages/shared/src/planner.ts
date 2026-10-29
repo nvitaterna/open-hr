@@ -5,6 +5,7 @@
  * usable capacity. docs/PLAN.md section 3 explains the method.
  */
 
+import { arrayBytesFor, type RaidLevel, volumeGroupBytesFor } from './array-capacity.ts';
 import {
   END_OF_DRIVE_RESERVE_BYTES,
   FIRST_PARTITION_OFFSET_BYTES,
@@ -21,8 +22,6 @@ const RAID1_MIRRORS_SHR1 = 2;
 const RAID1_MIRRORS_SHR2 = 3;
 const RAID5_MIN_MEMBERS = 3;
 const RAID6_MIN_MEMBERS = 4;
-const RAID5_PARITY = 1;
-const RAID6_PARITY = 2;
 
 /** Offset where tier partitions begin, after the GPT area and the label partition. */
 const TIER_AREA_OFFSET_BYTES = FIRST_PARTITION_OFFSET_BYTES + LABEL_PARTITION_BYTES;
@@ -54,19 +53,6 @@ function levelFor(redundancy: Redundancy, members: number): RaidLevel | null {
     return 'raid1';
   }
   return null;
-}
-
-function usableFor(level: RaidLevel, members: number, sliceBytes: number): number {
-  switch (level) {
-    case 'raid1':
-      return sliceBytes;
-    case 'raid5':
-      return (members - RAID5_PARITY) * sliceBytes;
-    case 'raid6':
-      return (members - RAID6_PARITY) * sliceBytes;
-    default:
-      throw new Error(`Unhandled RAID level: ${String(level satisfies never)}`);
-  }
 }
 
 /**
@@ -140,6 +126,7 @@ function buildTiers(
     const tierNumber = tiers.length + 1;
     const partitionNumber = LABEL_PARTITION_NUMBER + tierNumber;
     const sliceBytes = boundary - tierStart;
+    const arrayBytes = arrayBytesFor(level, memberIndexes.length, sliceBytes);
     for (const index of memberIndexes) {
       partitionsByDrive[index]?.push({
         number: partitionNumber,
@@ -155,7 +142,8 @@ function buildTiers(
       level,
       members: memberIndexes.map((index) => drives[index]?.id ?? ''),
       sliceBytes,
-      usableBytes: usableFor(level, memberIndexes.length, sliceBytes),
+      arrayBytes,
+      usableBytes: volumeGroupBytesFor(level, memberIndexes.length, arrayBytes),
     });
     tierStart = boundary;
   }
@@ -177,8 +165,6 @@ function buildDrive(
     unusedBytes: capacity - tierBytes,
   };
 }
-
-export type RaidLevel = 'raid1' | 'raid5' | 'raid6';
 
 export interface DriveInput {
   /** Any stable identifier, such as a device path or serial number. */
@@ -213,6 +199,9 @@ export interface PlannedTier {
   readonly members: readonly string[];
   /** Size of the partition each member contributes. */
   readonly sliceBytes: number;
+  /** Size of the md array, after mdadm's per-member data offset. */
+  readonly arrayBytes: number;
+  /** Space the tier adds to the volume group, after LVM's own overhead. */
   readonly usableBytes: number;
 }
 
