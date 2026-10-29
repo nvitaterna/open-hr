@@ -51,6 +51,22 @@ export class JobRunner {
     return job;
   }
 
+  /**
+   * Puts a failed job back to pending from its failed step and starts it.
+   * The caller checked that the job failed and its pool is free.
+   */
+  retry(job: JobRecord): JobRecord {
+    const definition = this.#options.definitionFor(job);
+    for (const step of job.steps) {
+      if (step.status === 'failed') {
+        this.#options.store.setStepStatus(job.id, step.index, 'pending');
+      }
+    }
+    const pending = this.#options.store.setJobStatus(job.id, 'pending');
+    this.#start(job.id, definition);
+    return pending;
+  }
+
   /** Starts every pending or running job left by a previous daemon. Returns how many. */
   resumeUnfinished(): number {
     const unfinished = this.#options.store.unfinishedJobs();

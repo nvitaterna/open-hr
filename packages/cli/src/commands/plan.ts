@@ -1,6 +1,5 @@
 import { parseArgs } from 'node:util';
 
-import { readDrives } from '@ohr/core/system-state';
 import type { Redundancy } from '@ohr/shared/constants';
 import { type DriveInput, describePlanError, type Layout, planPool } from '@ohr/shared/planner';
 import { formatSize, parseSize, SizeParseError } from '@ohr/shared/sizes';
@@ -38,7 +37,9 @@ async function realDrives(
   paths: readonly string[],
   io: Io,
 ): Promise<{ drives: DriveInput[]; problems: string[]; warnings: string[] }> {
-  const known = new Map((await readDrives(io.run)).map((drive) => [drive.device.path, drive]));
+  const core = await io.core();
+  const { snapshot } = await core.call('system.state', {});
+  const known = new Map(snapshot.drives.map((drive) => [drive.device.path, drive]));
   const drives: DriveInput[] = [];
   const problems: string[] = [];
   const warnings: string[] = [];

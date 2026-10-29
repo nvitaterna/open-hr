@@ -1,6 +1,5 @@
 import { parseArgs } from 'node:util';
 
-import { readSystemState } from '@ohr/core/system-state';
 import { isDegraded, type MdstatSync } from '@ohr/shared/parsers/mdstat';
 import { formatSize } from '@ohr/shared/sizes';
 import type { DriveState, MdArrayState, SystemSnapshot } from '@ohr/shared/system-snapshot';
@@ -137,7 +136,7 @@ export const STATUS_USAGE = `Usage: ohr status [--smart] [--json]
 Shows drives, RAID arrays, and LVM volume groups. Read-only.
 
 Options:
-  --smart    Include SMART health. Needs root. Never wakes sleeping drives.
+  --smart    Include SMART health. Slower. Never wakes sleeping drives.
   --json     Print the full snapshot as JSON.`;
 
 export async function statusCommand(args: readonly string[], io: Io): Promise<number> {
@@ -150,11 +149,8 @@ export async function statusCommand(args: readonly string[], io: Io): Promise<nu
     strict: true,
     allowPositionals: false,
   });
-  const snapshot = await readSystemState({
-    run: io.run,
-    readFile: io.readFile,
-    includeSmart: values.smart,
-  });
+  const core = await io.core();
+  const { snapshot } = await core.call('system.state', { smart: values.smart });
   if (values.json) {
     io.stdout(JSON.stringify(snapshot, null, 2));
     return EXIT_OK;

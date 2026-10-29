@@ -18,10 +18,11 @@
     "test:coverage": "vitest run --passWithNoTests --coverage"
   },
   "dependencies": {
-    "@ohr/core": "workspace:*",
+    "@ohr/rpc": "workspace:*",
     "@ohr/shared": "workspace:*"
   },
   "devDependencies": {
+    "@ohr/core": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",

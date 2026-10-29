@@ -13,15 +13,15 @@ describe('ohr pool create', () => {
     expect((await runCli(['pool', 'explode'])).code).toBe(2);
   });
 
-  it('needs root', async () => {
+  it('says so when ohr-core is not running', async () => {
     const result = await runCli(
       ['pool', 'create', '--id', 'p2', '--redundancy', 'shr1', '/dev/sdx', '/dev/sdy'],
       emptyDrivesMachine(),
       new Map(),
-      { isRoot: false },
+      { coreStopped: true },
     );
     expect(result.code).toBe(1);
-    expect(result.stderr).toContain('needs root');
+    expect(result.stderr).toContain('ohr-core is not running');
   });
 
   it('refuses the OS drive, unknown drives, drives with data, and a pool id in use', async () => {
@@ -46,6 +46,7 @@ describe('ohr pool create', () => {
     );
     expect(result.stderr).toContain('/dev/sdq is not a physical drive');
     expect(result.stderr).toContain('Volume group ohr-p1 already exists');
+    expect(result.stderr).toContain('Pass --wipe to erase drives that hold something.');
   });
 
   it('shows the plan and the commands, then stops when the id is not typed back', async () => {
@@ -75,7 +76,7 @@ describe('ohr pool create', () => {
     expect(result.stderr).toContain('needs at least 4 drives');
   });
 
-  it('accepts loop devices only with --allow-loop', async () => {
+  it('accepts loop devices only when ohr-core runs with --allow-loop', async () => {
     const machine = emptyDrivesMachine();
     const lsblk = JSON.parse(String((machine.get('lsblk') as { stdout: string }).stdout)) as {
       blockdevices: Record<string, unknown>[];
@@ -108,7 +109,7 @@ describe('ohr pool create', () => {
     const refused = await runCli(args, machine, new Map());
     expect(refused.code).toBe(1);
     expect(refused.stderr).toContain('/dev/loop7 is not a physical drive');
-    const allowed = await runCli([...args, '--allow-loop'], machine, new Map(), { answer: 'no' });
+    const allowed = await runCli(args, machine, new Map(), { answer: 'no', allowLoop: true });
     expect(allowed.stdout).toContain('1. partition /dev/loop7');
     expect(allowed.stderr).toBe('Cancelled. Nothing was changed.');
   });

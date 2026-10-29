@@ -15,8 +15,9 @@ import {
   recheckVolumeCreate,
   volumeSizeBytes,
 } from '../jobs/volume-create-preview.ts';
+import { SystemStateError } from '../system-state.ts';
 import type { JobRunner } from './job-runner.ts';
-import type { StateCache } from './state-cache.ts';
+import type { CachedState, StateCache } from './state-cache.ts';
 
 const REFUSED = 'Open HR refused the request.';
 const STATE_CHANGED = 'The machine changed since the preview. Preview it again.';
@@ -36,6 +37,16 @@ function stepPreviews(
     description: step.description,
     commands: [...step.commands],
   }));
+}
+
+/** Turns a failure to read the machine into an error the client can show. */
+function reading<T>(read: Promise<T>): Promise<T> {
+  return read.catch((error: unknown) => {
+    if (error instanceof SystemStateError) {
+      throw new RpcError('internal', `Reading the system failed: ${error.message}`);
+    }
+    throw error;
+  });
 }
 
 function refuseIf(reasons: readonly string[]): void {
@@ -62,6 +73,8 @@ export interface HandlerContext {
   readonly state: StateCache;
   readonly jobs: JobRunner;
   readonly jobDeps: JobDeps;
+  /** A fresh, uncached read that includes SMART data. */
+  readonly readWithSmart: () => Promise<CachedState>;
 }
 
 export function createHandlers(context: HandlerContext): Handlers {
@@ -74,10 +87,17 @@ export function createHandlers(context: HandlerContext): Handlers {
   }
 
   return {
-    'system.state': () => context.state.get(),
-    'pools.list': async () => ({ pools: derivePools((await context.state.get()).snapshot) }),
+    'system.state': ({ smart }) => {
+      if (smart === true) {
+        return reading(context.readWithSmart());
+      }
+      return reading(context.state.get());
+    },
+    'pools.list': async () => ({
+      pools: derivePools((await reading(context.state.get())).snapshot),
+    }),
     'pools.get': async ({ id }) => {
-      const pool = derivePools((await context.state.get()).snapshot).find(
+      const pool = derivePools((await reading(context.state.get())).snapshot).find(
         (candidate) => candidate.id === id,
       );
       if (pool === undefined) {
@@ -85,7 +105,9 @@ export function createHandlers(context: HandlerContext): Handlers {
       }
       return { pool };
     },
-    'drives.list': async () => ({ drives: deriveDrives((await context.state.get()).snapshot) }),
+    'drives.list': async () => ({
+      drives: deriveDrives((await reading(context.state.get())).snapshot),
+    }),
     'jobs.list': () => Promise.resolve({ jobs: context.store.listJobs() }),
     'jobs.get': ({ id }) => {
       const job = context.store.getJob(id);
@@ -95,13 +117,13 @@ export function createHandlers(context: HandlerContext): Handlers {
       return Promise.resolve({ job, log: context.store.logLines(id) });
     },
     'pools.previewCreate': async (request) => {
-      const state = await context.state.refresh();
+      const state = await reading(context.state.refresh());
       const input = unwrap(previewPoolCreate(request, state.snapshot, state.snapshot.drives));
       const definition = jobDefinition({ kind: 'pool-create', input }, context.jobDeps);
       return { input, steps: stepPreviews(definition), stateHash: state.stateHash };
     },
     'volumes.previewCreate': async (request) => {
-      const state = await context.state.refresh();
+      const state = await reading(context.state.refresh());
       const input = unwrap(previewVolumeCreate(request, state.snapshot));
       const definition = jobDefinition({ kind: 'volume-create', input }, context.jobDeps);
       return {
@@ -113,7 +135,7 @@ export function createHandlers(context: HandlerContext): Handlers {
     },
     'jobs.submit': (submission) =>
       serialize(async () => {
-        const state = await context.state.refresh();
+        const state = await reading(context.state.refresh());
         if (state.stateHash !== submission.stateHash) {
           throw new RpcError('state-changed', STATE_CHANGED);
         }
@@ -136,6 +158,29 @@ export function createHandlers(context: HandlerContext): Handlers {
         // Submissions are serialized and the pool was checked above, so the store's own
         // one-job-per-pool index cannot refuse this one.
         return { job: context.jobs.submit(definition, state.stateHash) };
+      }),
+    'jobs.retry': ({ id }) =>
+      serialize(() => {
+        const job = context.store.getJob(id);
+        if (job === null) {
+          throw new RpcError('not-found', `There is no job ${id}.`);
+        }
+        if (job.status !== 'failed') {
+          throw new RpcError('rejected', REFUSED, [`Job ${id} is ${job.status}, not failed.`]);
+        }
+        const pool = context.store.listJobs().filter((other) => other.poolId === job.poolId);
+        if (pool.some((other) => other.status === 'pending' || other.status === 'running')) {
+          throw new RpcError(
+            'conflict',
+            `Pool ${job.poolId} already has a job that has not finished.`,
+          );
+        }
+        if (pool.some((other) => other.createdAt > job.createdAt)) {
+          throw new RpcError('rejected', REFUSED, [
+            `Pool ${job.poolId} has a newer job than ${id}. Only the latest job can be retried.`,
+          ]);
+        }
+        return Promise.resolve({ job: context.jobs.retry(job) });
       }),
   };
 }

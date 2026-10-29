@@ -6,7 +6,7 @@ describe('ohr', () => {
   it('prints usage with no arguments', async () => {
     const result = await runCli([]);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('Usage: ohr <command>');
+    expect(result.stdout).toContain('Usage: ohr [--socket <path>] <command>');
     expect(result.stdout).toContain('status');
   });
 

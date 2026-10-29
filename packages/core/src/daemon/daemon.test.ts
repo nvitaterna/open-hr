@@ -141,6 +141,29 @@ describe('ohr-core daemon', () => {
     ).rejects.toThrow('already listening');
   });
 
+  it('starts even when the first read fails, and reports the failure to callers', async () => {
+    const broken = exampleShr1Answers();
+    broken.set('lsblk', { kind: 'exited', exitCode: 32, stdout: '', stderr: 'lsblk: failed' });
+    const other = await startDaemon({
+      socketPath: join(directory, 'broken.sock'),
+      databasePath: ':memory:',
+      socketGroup: null,
+      watch: null,
+      run: fakeRunner(broken).run,
+      readFile: exampleShr1Files(),
+      labelIo: exampleShr1Labels(),
+      log: (line) => logged.push(line),
+    });
+    const rpc = await RpcClient.connect(join(directory, 'broken.sock'));
+    await expect(rpc.call('pools.list', {})).rejects.toMatchObject({
+      code: 'internal',
+      message: 'Reading the system failed: lsblk exited with code 32: lsblk: failed',
+    });
+    expect(logged.join('\n')).toContain('Reading the system state failed');
+    await rpc.close();
+    await other.close();
+  });
+
   it('warns when the socket group does not exist', async () => {
     const other = await startDaemon({
       socketPath: join(directory, 'other.sock'),
