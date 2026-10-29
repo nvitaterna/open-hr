@@ -51,6 +51,10 @@ contents:
     dst: /usr/lib/systemd/system/ohr-web.service
     file_info:
       mode: 0644
+  - src: deploy/debian/open-hr.tmpfiles
+    dst: /usr/lib/tmpfiles.d/open-hr.conf
+    file_info:
+      mode: 0644
   - src: deploy/debian/open-hr.sysusers
     dst: /usr/lib/sysusers.d/open-hr.conf
     file_info:

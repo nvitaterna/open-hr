@@ -29,17 +29,18 @@ pre-release needs.
 
 ### Installed layout
 
-| Path                                    | What                                                                 |
-| --------------------------------------- | -------------------------------------------------------------------- |
-| `/opt/ohr/node/bin/node`                | bundled Node                                                         |
-| `/opt/ohr/lib/{core,web,cli}.mjs`       | bundles                                                              |
-| `/opt/ohr/ui/`                          | UI build                                                             |
-| `/usr/bin/ohr`, `/usr/bin/ohr-web`      | wrappers that run the bundles with the bundled Node                  |
-| `/usr/lib/systemd/system/ohr-*.service` | `ohr-core` (root) and `ohr-web` (user `ohr`)                         |
-| `/usr/lib/sysusers.d/open-hr.conf`      | the `ohr` system user and group                                      |
-| `/etc/ohr/`                             | configuration and `tls/`                                             |
-| `/var/lib/ohr/`                         | core database; `web/` belongs to `ohr`                               |
-| `/run/ohr/`                             | the socket, created by `ohr-core` (`RuntimeDirectory=`), group `ohr` |
+| Path                                    | What                                                       |
+| --------------------------------------- | ---------------------------------------------------------- |
+| `/opt/ohr/node/bin/node`                | bundled Node                                               |
+| `/opt/ohr/lib/{core,web,cli}.mjs`       | bundles                                                    |
+| `/opt/ohr/ui/`                          | UI build                                                   |
+| `/usr/bin/ohr`, `/usr/bin/ohr-web`      | wrappers that run the bundles with the bundled Node        |
+| `/usr/lib/systemd/system/ohr-*.service` | `ohr-core` (root) and `ohr-web` (user `ohr`)               |
+| `/usr/lib/sysusers.d/open-hr.conf`      | the `ohr` system user and group                            |
+| `/usr/lib/tmpfiles.d/open-hr.conf`      | creates `/run/ohr` at boot                                 |
+| `/etc/ohr/`                             | configuration and `tls/`                                   |
+| `/var/lib/ohr/`                         | core database; `web/` belongs to `ohr`                     |
+| `/run/ohr/`                             | the socket's directory, `root:ohr` 0750, from `tmpfiles.d` |
 - `ohr-web` has `After=` and `Requires=ohr-core.service` and retries the
   socket with backoff, so a core restart does not leave web broken.
 - `ohr-web` runs with `NoNewPrivileges`, `ProtectSystem=strict`,

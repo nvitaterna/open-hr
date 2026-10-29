@@ -8,10 +8,8 @@ After=local-fs.target systemd-udevd.service
 Type=simple
 # Runs as root: it partitions drives and runs mdadm and LVM (decision 0007).
 ExecStart=/opt/ohr/node/bin/node /opt/ohr/lib/core.mjs --socket /run/ohr/core.sock --database /var/lib/ohr/ohr.db --group ohr
-# /run/ohr holds the socket: root and the ohr group only.
-RuntimeDirectory=ohr
-RuntimeDirectoryMode=0750
-ExecStartPre=/bin/chgrp ohr /run/ohr
+# /run/ohr, root:ohr 0750, comes from tmpfiles.d (open-hr.conf). RuntimeDirectory=
+# cannot give it the ohr group.
 StateDirectory=ohr
 StateDirectoryMode=0755
 Restart=on-failure

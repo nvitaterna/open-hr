@@ -17,6 +17,7 @@ case "$1" in
 esac
 
 systemd-sysusers open-hr.conf
+systemd-tmpfiles --create open-hr.conf
 
 install -d -m 0755 -o root -g root /etc/ohr "$DATA"
 install -d -m 0750 -o ohr -g ohr "$WEB_DATA"
