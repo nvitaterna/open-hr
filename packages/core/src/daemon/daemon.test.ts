@@ -11,6 +11,7 @@ import type { CommandResult } from '../command-runner.ts';
 import {
   exampleShr1Answers,
   exampleShr1Files,
+  exampleShr1Labels,
   fakeRunner,
   fixture,
   ok,
@@ -40,6 +41,7 @@ beforeEach(async () => {
     watch: null,
     run: fakeRunner(answers).run,
     readFile: exampleShr1Files(),
+    labelIo: exampleShr1Labels(),
     log: (line) => logged.push(line),
   });
 });
@@ -54,12 +56,28 @@ describe('ohr-core daemon', () => {
     const expected = await readSystemState({
       run: fakeRunner(exampleShr1Answers()).run,
       readFile: exampleShr1Files(),
+      labelIo: exampleShr1Labels(),
       includeSmart: false,
     });
     const rpc = await RpcClient.connect(socketPath);
     const state = await rpc.call('system.state', {});
     expect(state.snapshot).toEqual(expected);
     expect(state.stateHash).toMatch(HEX_SHA256);
+    await rpc.close();
+  });
+
+  it('serves pools and drives derived from the snapshot', async () => {
+    const rpc = await RpcClient.connect(socketPath);
+    const { pools } = await rpc.call('pools.list', {});
+    expect(pools.map((pool) => [pool.id, pool.health, pool.tiers.length])).toEqual([
+      ['p1', 'healthy', 2],
+    ]);
+    await expect(rpc.call('pools.get', { id: 'p1' })).resolves.toEqual({ pool: pools[0] });
+    await expect(rpc.call('pools.get', { id: 'p9' })).rejects.toMatchObject({
+      code: 'not-found',
+    });
+    const { drives } = await rpc.call('drives.list', {});
+    expect(drives.map((drive) => drive.poolId)).toEqual([null, 'p1', 'p1', 'p1']);
     await rpc.close();
   });
 
@@ -103,6 +121,7 @@ describe('ohr-core daemon', () => {
       watch: null,
       run: fakeRunner(exampleShr1Answers()).run,
       readFile: exampleShr1Files(),
+      labelIo: exampleShr1Labels(),
       log: () => undefined,
     });
   });
@@ -116,6 +135,7 @@ describe('ohr-core daemon', () => {
         watch: null,
         run: fakeRunner(exampleShr1Answers()).run,
         readFile: exampleShr1Files(),
+        labelIo: exampleShr1Labels(),
         log: () => undefined,
       }),
     ).rejects.toThrow('already listening');
@@ -129,6 +149,7 @@ describe('ohr-core daemon', () => {
       watch: null,
       run: fakeRunner(exampleShr1Answers()).run,
       readFile: exampleShr1Files(),
+      labelIo: exampleShr1Labels(),
       log: (line) => logged.push(line),
     });
     expect(logged.join('\n')).toContain('Group no-such-group does not exist');

@@ -3,9 +3,8 @@
 import { RpcError } from '@ohr/rpc/rpc-error';
 import type { Handlers } from '@ohr/rpc/server';
 import { poolCreateInputSchema } from '@ohr/shared/pool-create-input';
-import type { DriveState } from '@ohr/shared/system-snapshot';
+import { deriveDrives, derivePools } from '@ohr/shared/pool-view';
 
-import type { CommandRunner } from '../command-runner.ts';
 import { type JobDeps, jobDefinition } from '../jobs/definitions.ts';
 import { type JobDefinition, previewJob } from '../jobs/engine.ts';
 import { previewPoolCreate, recheckPoolCreate } from '../jobs/pool-create-preview.ts';
@@ -16,9 +15,8 @@ import {
   recheckVolumeCreate,
   volumeSizeBytes,
 } from '../jobs/volume-create-preview.ts';
-import { readLoopDrives } from '../system-state.ts';
 import type { JobRunner } from './job-runner.ts';
-import type { CachedState, StateCache } from './state-cache.ts';
+import type { StateCache } from './state-cache.ts';
 
 const REFUSED = 'Open HR refused the request.';
 const STATE_CHANGED = 'The machine changed since the preview. Preview it again.';
@@ -63,21 +61,10 @@ export interface HandlerContext {
   readonly store: JobStore;
   readonly state: StateCache;
   readonly jobs: JobRunner;
-  readonly run: CommandRunner;
-  /** Offer loop devices as drives. Only for tests on loop devices. */
-  readonly allowLoopDevices: boolean;
   readonly jobDeps: JobDeps;
 }
 
 export function createHandlers(context: HandlerContext): Handlers {
-  async function candidates(state: CachedState): Promise<DriveState[]> {
-    const drives = [...state.snapshot.drives];
-    if (context.allowLoopDevices) {
-      drives.push(...(await readLoopDrives(context.run)));
-    }
-    return drives;
-  }
-
   // Submissions run one at a time, so two cannot both pass the checks against the same state.
   let submissions: Promise<unknown> = Promise.resolve();
   function serialize<T>(task: () => Promise<T>): Promise<T> {
@@ -88,6 +75,17 @@ export function createHandlers(context: HandlerContext): Handlers {
 
   return {
     'system.state': () => context.state.get(),
+    'pools.list': async () => ({ pools: derivePools((await context.state.get()).snapshot) }),
+    'pools.get': async ({ id }) => {
+      const pool = derivePools((await context.state.get()).snapshot).find(
+        (candidate) => candidate.id === id,
+      );
+      if (pool === undefined) {
+        throw new RpcError('not-found', `There is no pool ${id}.`);
+      }
+      return { pool };
+    },
+    'drives.list': async () => ({ drives: deriveDrives((await context.state.get()).snapshot) }),
     'jobs.list': () => Promise.resolve({ jobs: context.store.listJobs() }),
     'jobs.get': ({ id }) => {
       const job = context.store.getJob(id);
@@ -98,7 +96,7 @@ export function createHandlers(context: HandlerContext): Handlers {
     },
     'pools.previewCreate': async (request) => {
       const state = await context.state.refresh();
-      const input = unwrap(previewPoolCreate(request, state.snapshot, await candidates(state)));
+      const input = unwrap(previewPoolCreate(request, state.snapshot, state.snapshot.drives));
       const definition = jobDefinition({ kind: 'pool-create', input }, context.jobDeps);
       return { input, steps: stepPreviews(definition), stateHash: state.stateHash };
     },
@@ -124,7 +122,7 @@ export function createHandlers(context: HandlerContext): Handlers {
           throw new RpcError('conflict', `Pool ${poolId} already has a job that has not finished.`);
         }
         if (submission.kind === 'pool-create') {
-          refuseIf(recheckPoolCreate(submission.input, state.snapshot, await candidates(state)));
+          refuseIf(recheckPoolCreate(submission.input, state.snapshot, state.snapshot.drives));
           const busy = busyDevices(context.store);
           refuseIf(
             submission.input.drives

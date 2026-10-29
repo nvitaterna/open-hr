@@ -7,6 +7,7 @@ import { parseArgs } from 'node:util';
 import { CORE_SOCKET_PATH, DEFAULT_DATABASE_PATH, SHORT_NAME } from '@ohr/shared/constants';
 
 import { runCommand } from '../command-runner.ts';
+import { blockDeviceIo } from '../executors/label-partition.ts';
 import { readTextFile } from '../file-reader.ts';
 import { startDaemon } from './daemon.ts';
 
@@ -82,6 +83,7 @@ async function main(): Promise<number> {
     socketGroup,
     run: runCommand,
     readFile: readTextFile,
+    labelIo: blockDeviceIo,
     allowLoopDevices: parsed['allow-loop'],
     log,
   });

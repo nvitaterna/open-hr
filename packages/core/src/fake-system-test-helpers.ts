@@ -2,7 +2,10 @@
 
 import { readFileSync } from 'node:fs';
 
+import { encodeLabelDescriptor } from '@ohr/shared/label-descriptor';
+
 import type { CommandResult, CommandRunner, FileReader } from './command-runner.ts';
+import type { BlockDeviceIo } from './executors/label-partition.ts';
 
 const FIXTURES = new URL('../../shared/fixtures/', import.meta.url);
 
@@ -66,4 +69,39 @@ export function exampleShr1Answers(): Map<string, CommandResult> {
 
 export function exampleShr1Files(): FileReader {
   return fakeFiles(new Map([['/proc/mdstat', fixture('example-shr1/mdstat.txt')]]));
+}
+
+/** The example pool's UUID, as its labels carry it. */
+export const EXAMPLE_POOL_UUID = '6f1c2a4e-8b3d-4c5e-9a7f-1b2c3d4e5f60';
+
+/** A label reader that serves the given partitions and fails for any other path. */
+export function fakeLabelIo(labels: ReadonlyMap<string, Uint8Array>): BlockDeviceIo {
+  return {
+    read: (path) => {
+      const bytes = labels.get(path);
+      if (bytes === undefined) {
+        return Promise.reject(new Error(`ENOENT: no such device ${path}`));
+      }
+      return Promise.resolve(bytes);
+    },
+    write: () => Promise.reject(new Error('the fake label reader is read-only')),
+  };
+}
+
+/** Labels for the worked example's three pool drives. */
+export function exampleShr1Labels(): BlockDeviceIo {
+  return fakeLabelIo(
+    new Map(
+      ['sda', 'sdb', 'sdc'].map((name, index) => [
+        `/dev/${name}1`,
+        encodeLabelDescriptor({
+          poolId: 'p1',
+          poolUuid: EXAMPLE_POOL_UUID,
+          driveUuid: `00000000-0000-4000-8000-00000000000${index + 1}`,
+          redundancy: 'shr1',
+          writtenAt: '2026-10-29T12:00:00.000Z',
+        }),
+      ]),
+    ),
+  );
 }

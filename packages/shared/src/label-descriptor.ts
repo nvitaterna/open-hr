@@ -39,6 +39,16 @@ function decodeText(bytes: Uint8Array): string {
   return new TextDecoder('utf-8', { fatal: true }).decode(text).trim();
 }
 
+/** A label as read back, including one that could not be read at all, for the system snapshot. */
+export const labelReadResultSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('ok'), descriptor: descriptorSchema }),
+  z.strictObject({ kind: z.literal('empty') }),
+  z.strictObject({ kind: z.literal('unsupported'), layoutVersion: z.number().int() }),
+  z.strictObject({ kind: z.literal('invalid'), reason: z.string() }),
+  /** The partition could not be opened or read, for example without root. */
+  z.strictObject({ kind: z.literal('unreadable'), reason: z.string() }),
+]);
+
 /** Layout version this code writes and understands. */
 export const LAYOUT_VERSION = 1;
 

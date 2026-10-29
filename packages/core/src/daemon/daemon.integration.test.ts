@@ -18,6 +18,7 @@ import { lvmReportArgs, parseVgs, VG_FIELDS } from '@ohr/shared/parsers/lvm';
 import type { PoolCreateInput } from '@ohr/shared/pool-create-input';
 
 import { runChecked, runCommand } from '../command-runner.ts';
+import { blockDeviceIo } from '../executors/label-partition.ts';
 import { mdArrayPath } from '../executors/md-array.ts';
 import { readMount } from '../executors/mount.ts';
 import { removeMountUnit } from '../executors/mount-unit.ts';
@@ -75,6 +76,7 @@ describe.skipIf(!isRoot)('ohr-core on loop devices', () => {
       socketGroup: null,
       run: runCommand,
       readFile: readTextFile,
+      labelIo: blockDeviceIo,
       allowLoopDevices: true,
       jobDeps: {
         poolCreate: { mdadmConfDir: join(loops.dir, 'mdadm.conf.d') },
@@ -167,5 +169,30 @@ describe.skipIf(!isRoot)('ohr-core on loop devices', () => {
     expect(mount.fsType).toBe('ext4');
     await writeFile(join(mountPoint, 'check.txt'), CONTENT);
     expect(await readFile(join(mountPoint, 'check.txt'), 'utf8')).toBe(CONTENT);
+  });
+
+  it('shows the pool, its labels, tiers, and mounted volume', async () => {
+    const { pool } = await rpc.call('pools.get', { id: POOL });
+    expect(pool).toMatchObject({
+      uuid: input?.poolUuid,
+      redundancy: 'shr1',
+      sizeBytes: input?.layout.usableBytes,
+      freeBytes: 0,
+      warnings: [],
+    });
+    // mdadm builds a new RAID5 by recovering onto its last member, so a fresh pool may show that.
+    expect(['healthy', 'syncing', 'rebuilding']).toContain(pool.health);
+    expect(pool.drives.map((drive) => [drive.path, drive.label])).toEqual(
+      loops.paths.map((path) => [path, 'ok']),
+    );
+    expect(pool.tiers.map((tier) => tier.level)).toEqual(['raid5', 'raid1']);
+    const states = pool.tiers.flatMap((tier) => tier.members.map((member) => member.state));
+    expect(states).toHaveLength(5);
+    expect(states.every((state) => state === 'active' || state === 'rebuilding')).toBe(true);
+    expect(pool.volumes).toMatchObject([{ name: VOLUME, filesystem: 'ext4', mountPoint }]);
+    const { drives } = await rpc.call('drives.list', {});
+    expect(drives.filter((drive) => drive.poolId === POOL).map((drive) => drive.path)).toEqual([
+      ...loops.paths,
+    ]);
   });
 });

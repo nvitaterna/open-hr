@@ -3,6 +3,7 @@
  * runs inspection commands and never changes anything.
  */
 
+import { parsePartitionLabel } from '@ohr/shared/naming';
 import { FINDMNT_COLUMNS, type Mount, parseFindmnt } from '@ohr/shared/parsers/findmnt';
 import { type BlockDevice, LSBLK_COLUMNS, parseLsblk } from '@ohr/shared/parsers/lsblk';
 import {
@@ -20,10 +21,16 @@ import {
 import { type MdDetail, parseMdadmDetail } from '@ohr/shared/parsers/mdadm-detail';
 import { parseMdstat } from '@ohr/shared/parsers/mdstat';
 import { parseSmartctl, type SmartReport } from '@ohr/shared/parsers/smartctl';
-import type { DriveState, MdArrayState, SystemSnapshot } from '@ohr/shared/system-snapshot';
+import type {
+  DriveState,
+  LabelState,
+  MdArrayState,
+  SystemSnapshot,
+} from '@ohr/shared/system-snapshot';
 
 import { type CommandRunner, describeFailure, type FileReader } from './command-runner.ts';
 import { driveRole, physicalDrives } from './drive-roles.ts';
+import { type BlockDeviceIo, readLabel } from './executors/label-partition.ts';
 
 const MDSTAT_PATH = '/proc/mdstat';
 const SMART_TIMEOUT_MS = 60_000;
@@ -141,6 +148,44 @@ async function readSmart(context: Context, device: BlockDevice): Promise<SmartRe
   return report;
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function loopDevices(devices: readonly BlockDevice[]): BlockDevice[] {
+  return devices.filter((device) => device.type === 'loop' && device.sizeBytes > 0);
+}
+
+/** Reads every Open HR label partition on the drives. A partition that cannot be read is reported, not fatal. */
+function readLabels(
+  drives: readonly DriveState[],
+  io: BlockDeviceIo | undefined,
+): Promise<LabelState[]> {
+  if (io === undefined) {
+    return Promise.resolve([]);
+  }
+  const partitions = drives.flatMap((drive) =>
+    drive.device.children.filter(
+      (child) => parsePartitionLabel(child.partLabel ?? '')?.kind === 'label',
+    ),
+  );
+  return Promise.all(
+    partitions.map(async (partition): Promise<LabelState> => {
+      try {
+        return { partition: partition.path, reading: await readLabel(io, partition.path) };
+      } catch (error) {
+        return {
+          partition: partition.path,
+          reading: { kind: 'unreadable', reason: errorMessage(error) },
+        };
+      }
+    }),
+  );
+}
+
 export class SystemStateError extends Error {
   override readonly name = 'SystemStateError';
 }
@@ -150,6 +195,10 @@ export interface ReadOptions {
   readonly readFile: FileReader;
   /** Read SMART data for each drive. Slower, and needs root. */
   readonly includeSmart: boolean;
+  /** Reads label partitions. Without it the snapshot has no labels. Needs root. */
+  readonly labelIo?: BlockDeviceIo;
+  /** Count attached loop devices as drives. Only for tests on loop devices. */
+  readonly includeLoopDevices?: boolean;
 }
 
 /** Reads the whole storage state. Throws SystemStateError only if lsblk itself fails. */
@@ -161,8 +210,12 @@ export async function readSystemState(options: ReadOptions): Promise<SystemSnaps
     readMdArrays(context),
     readLvm(context),
   ]);
+  let candidates = physicalDrives(devices);
+  if (options.includeLoopDevices === true) {
+    candidates = [...candidates, ...loopDevices(devices)];
+  }
   const drives = await Promise.all(
-    physicalDrives(devices).map(async (device) => {
+    candidates.map(async (device) => {
       let smart: SmartReport | null = null;
       if (options.includeSmart) {
         smart = await readSmart(context, device);
@@ -176,6 +229,7 @@ export async function readSystemState(options: ReadOptions): Promise<SystemSnaps
     mdArrays,
     ...lvm,
     mounts,
+    labels: await readLabels(drives, options.labelIo),
     warnings: context.warnings.toSorted((a, b) => a.localeCompare(b)),
   };
 }
@@ -195,7 +249,5 @@ export async function readDrives(run: CommandRunner): Promise<DriveState[]> {
 export async function readLoopDrives(run: CommandRunner): Promise<DriveState[]> {
   const context: Context = { run, readFile: () => Promise.resolve(null), warnings: [] };
   const devices = await readBlockDevices(context);
-  return devices
-    .filter((device) => device.type === 'loop' && device.sizeBytes > 0)
-    .map((device) => ({ device, role: driveRole(device), smart: null }));
+  return loopDevices(devices).map((device) => ({ device, role: driveRole(device), smart: null }));
 }
