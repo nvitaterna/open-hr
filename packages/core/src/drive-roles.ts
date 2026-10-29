@@ -1,6 +1,6 @@
 /** Decides what each physical drive is currently used for. */
 
-import { PARTITION_LABEL_PREFIX } from '@ohr/shared/naming';
+import { isOhrPartitionLabel } from '@ohr/shared/naming';
 import { type BlockDevice, flattenBlockDevices } from '@ohr/shared/parsers/lsblk';
 
 /** Mount points that mean a drive holds the running operating system. */
@@ -30,7 +30,7 @@ export function driveRole(drive: BlockDevice): DriveRole {
   if (everything.some((device) => device.mountpoints.some((point) => SYSTEM_MOUNTS.has(point)))) {
     return 'system';
   }
-  if (descendants.some((device) => device.partLabel?.startsWith(PARTITION_LABEL_PREFIX) === true)) {
+  if (descendants.some((device) => isOhrPartitionLabel(device.partLabel ?? ''))) {
     return 'ohr';
   }
   if (drive.fsType !== null || drive.children.length > 0 || drive.mountpoints.length > 0) {

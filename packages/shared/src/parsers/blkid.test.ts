@@ -23,7 +23,7 @@ describe('parseBlkid', () => {
   });
 
   it('reads Open HR partition labels', () => {
-    expect(entries[2]).toMatchObject({ partLabel: 'ohr:p1:t1', label: 'nas:ohr_p1_t1' });
+    expect(entries[2]).toMatchObject({ partLabel: 'ohr-p1-t1', label: 'nas:ohr_p1_t1' });
   });
 
   it('returns nothing for empty output', () => {

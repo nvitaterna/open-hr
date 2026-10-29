@@ -5,11 +5,21 @@
 
 const POOL_ID_PATTERN = /^[a-z0-9]{1,8}$/u;
 
-/** Prefix shared by every GPT partition name Open HR writes. */
-export const PARTITION_LABEL_PREFIX = 'ohr:';
+/**
+ * Every GPT partition name Open HR writes. Dashes, not colons, because sgdisk
+ * cuts a name at the first colon (decision 0004).
+ */
+const PARTITION_LABEL_PATTERN = /^ohr-[a-z0-9]{1,8}-(?:label|t[1-9]\d*)$/u;
+
+const PARTITION_LABEL_PREFIX = 'ohr-';
 
 export class PoolIdError extends Error {
   override readonly name = 'PoolIdError';
+}
+
+/** True for a GPT partition name that Open HR writes. */
+export function isOhrPartitionLabel(label: string): boolean {
+  return PARTITION_LABEL_PATTERN.test(label);
 }
 
 export function isValidPoolId(poolId: string): boolean {
@@ -38,11 +48,11 @@ export function volumeGroupName(poolId: string): string {
 /** GPT partition name for a tier partition. */
 export function tierPartitionLabel(poolId: string, tier: number): string {
   assertPoolId(poolId);
-  return `${PARTITION_LABEL_PREFIX}${poolId}:t${tier}`;
+  return `${PARTITION_LABEL_PREFIX}${poolId}-t${tier}`;
 }
 
 /** GPT partition name for the label partition that holds the drive descriptor. */
 export function labelPartitionLabel(poolId: string): string {
   assertPoolId(poolId);
-  return `${PARTITION_LABEL_PREFIX}${poolId}:label`;
+  return `${PARTITION_LABEL_PREFIX}${poolId}-label`;
 }

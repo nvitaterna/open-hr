@@ -46,7 +46,7 @@ describe('driveRole', () => {
   });
 
   it('recognises Open HR partitions by their label', () => {
-    const part = device({ type: 'part', name: 'sdx1', partLabel: 'ohr:p1:label' });
+    const part = device({ type: 'part', name: 'sdx1', partLabel: 'ohr-p1-label' });
     expect(driveRole(device({ children: [part] }))).toBe('ohr');
   });
 
@@ -59,7 +59,7 @@ describe('driveRole', () => {
   });
 
   it('ranks system above Open HR when both apply', () => {
-    const ohr = device({ type: 'part', name: 'sdx1', partLabel: 'ohr:p1:t1' });
+    const ohr = device({ type: 'part', name: 'sdx1', partLabel: 'ohr-p1-t1' });
     const boot = device({ type: 'part', name: 'sdx2', mountpoints: ['/boot'] });
     expect(driveRole(device({ children: [ohr, boot] }))).toBe('system');
   });

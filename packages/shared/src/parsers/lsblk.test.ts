@@ -28,9 +28,9 @@ describe('parseLsblk: current format', () => {
     expect(devices.map((device) => device.name)).toEqual(['nvme0n1', 'sda', 'sdb', 'sdc']);
     const sdb = devices.find((device) => device.name === 'sdb');
     expect(sdb?.children.map((child) => [child.name, child.partNumber, child.partLabel])).toEqual([
-      ['sdb1', 1, 'ohr:p1:label'],
-      ['sdb2', 2, 'ohr:p1:t1'],
-      ['sdb3', 3, 'ohr:p1:t2'],
+      ['sdb1', 1, 'ohr-p1-label'],
+      ['sdb2', 2, 'ohr-p1-t1'],
+      ['sdb3', 3, 'ohr-p1-t2'],
     ]);
     const md = sdb?.children[1]?.children[0];
     expect(md).toMatchObject({ name: 'md127', type: 'raid5', fsType: 'LVM2_member' });
