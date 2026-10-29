@@ -1,0 +1,16 @@
+MD_LEVEL=raid5
+MD_DEVICES=5
+MD_METADATA=1.2
+MD_UUID=f5126f62:e4406841:d9539c70:fd003a2e
+MD_DEVNAME=ohr_dev_t2
+MD_NAME=any:ohr_dev_t2
+MD_DEVICE_dev_sdg3_ROLE=4
+MD_DEVICE_dev_sdg3_DEV=/dev/sdg3
+MD_DEVICE_dev_sdf3_ROLE=3
+MD_DEVICE_dev_sdf3_DEV=/dev/sdf3
+MD_DEVICE_dev_sde3_ROLE=2
+MD_DEVICE_dev_sde3_DEV=/dev/sde3
+MD_DEVICE_dev_sdd3_ROLE=1
+MD_DEVICE_dev_sdd3_DEV=/dev/sdd3
+MD_DEVICE_dev_sdc3_ROLE=0
+MD_DEVICE_dev_sdc3_DEV=/dev/sdc3

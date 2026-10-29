@@ -1,0 +1,8 @@
+captured: 2026-10-28T23:46:17+00:00
+kernel: 6.12.113+deb13-cloud-amd64
+PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+VERSION_ID="13"
+lsblk from util-linux 2.41.5
+mdadm - v4.4 - 2024-11-07 - Debian 4.4-11
+  LVM version:     2.03.31(2) (2025-02-27)
+smartctl 7.4 2023-08-01 r5530 [x86_64-linux-6.12.113+deb13-cloud-amd64] (local build)

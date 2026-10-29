@@ -1,0 +1,12 @@
+  {
+      "report": [
+          {
+              "lv": [
+                  {"lv_name":"data", "vg_name":"ohr-dev", "lv_uuid":"KlH9q9-uGJM-P1mO-laef-Oqgh-xLzE-QED0pn", "lv_size":"25300041728", "lv_path":"/dev/ohr-dev/data", "lv_attr":"-wi-ao----", "lv_layout":"linear"}
+              ]
+          }
+      ]
+      ,
+      "log": [
+      ]
+  }
