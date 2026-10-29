@@ -38,7 +38,6 @@ pre-release needs.
 | `/etc/ohr/`                         | configuration and `tls/`                                |
 | `/var/lib/ohr/`                     | core database; `web/` belongs to `ohr`                  |
 | `/run/ohr/`                         | the socket, created by `ohr-core` (`RuntimeDirectory=`) |
-
 - `ohr-web` has `After=` and `Requires=ohr-core.service` and retries the
   socket with backoff, so a core restart does not leave web broken.
 - `ohr-web` runs with `NoNewPrivileges`, `ProtectSystem=strict`,
