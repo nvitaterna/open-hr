@@ -21,6 +21,8 @@ Options:
   --socket <path>     Unix socket to listen on (default ${CORE_SOCKET_PATH})
   --database <path>   SQLite database (default ${DEFAULT_DATABASE_PATH})
   --group <name>      Group allowed to connect (default ${SHORT_NAME}); "" for root only
+  --allow-loop        Offer loop devices as drives. For testing only: a pool on
+                      loop devices does not come back after a reboot by itself.
   --help              Show this message`;
 
 function errorText(error: unknown): string {
@@ -34,12 +36,19 @@ function log(line: string): void {
   process.stderr.write(`${line}\n`);
 }
 
-function options(): { socket: string; database: string; group: string; help: boolean } {
+function options(): {
+  socket: string;
+  database: string;
+  group: string;
+  'allow-loop': boolean;
+  help: boolean;
+} {
   const { values } = parseArgs({
     options: {
       socket: { type: 'string', default: CORE_SOCKET_PATH },
       database: { type: 'string', default: DEFAULT_DATABASE_PATH },
       group: { type: 'string', default: SHORT_NAME },
+      'allow-loop': { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
     },
     strict: true,
@@ -73,6 +82,7 @@ async function main(): Promise<number> {
     socketGroup,
     run: runCommand,
     readFile: readTextFile,
+    allowLoopDevices: parsed['allow-loop'],
     log,
   });
   log(`ohr-core listening on ${parsed.socket}`);

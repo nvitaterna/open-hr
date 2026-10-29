@@ -61,6 +61,9 @@ function defaultHandlers(): Handlers {
       }
       return Promise.reject(new RpcError('not-found', `There is no job ${id}.`));
     },
+    'pools.previewCreate': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
+    'volumes.previewCreate': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
+    'jobs.submit': () => Promise.reject(new RpcError('rejected', 'Not in this test.')),
   };
 }
 
@@ -96,6 +99,9 @@ beforeEach(async () => {
       'system.state': (params) => handlers['system.state'](params),
       'jobs.list': (params) => handlers['jobs.list'](params),
       'jobs.get': (params) => handlers['jobs.get'](params),
+      'pools.previewCreate': (params) => handlers['pools.previewCreate'](params),
+      'volumes.previewCreate': (params) => handlers['volumes.previewCreate'](params),
+      'jobs.submit': (params) => handlers['jobs.submit'](params),
     },
     log: (line) => logged.push(line),
   });

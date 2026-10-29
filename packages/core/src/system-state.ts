@@ -190,3 +190,12 @@ export async function readDrives(run: CommandRunner): Promise<DriveState[]> {
     smart: null,
   }));
 }
+
+/** Attached loop devices, as drives. Only for testing on loop devices: never offered to users. */
+export async function readLoopDrives(run: CommandRunner): Promise<DriveState[]> {
+  const context: Context = { run, readFile: () => Promise.resolve(null), warnings: [] };
+  const devices = await readBlockDevices(context);
+  return devices
+    .filter((device) => device.type === 'loop' && device.sizeBytes > 0)
+    .map((device) => ({ device, role: driveRole(device), smart: null }));
+}
