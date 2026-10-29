@@ -1,9 +1,10 @@
 /**
- * Runs the executors against real loop devices. Needs root, sgdisk, mdadm,
- * LVM, mkfs.btrfs, mkfs.ext4, wipefs, and losetup. Run with `pnpm --filter @ohr/core test:integration` as
+ * Runs the executors against real loop devices. Needs root, systemd, sgdisk,
+ * mdadm, LVM, mkfs.btrfs, mkfs.ext4, wipefs, and losetup. Run with `pnpm --filter @ohr/core test:integration` as
  * root; the normal test run skips this file.
  */
 
+import { existsSync } from 'node:fs';
 import { mkdtemp, readdir, realpath, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,7 +13,8 @@ import process from 'node:process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { LSBLK_COLUMNS, parseLsblk } from '@ohr/shared/parsers/lsblk';
-import type { MdDetail } from '@ohr/shared/parsers/mdadm-detail';
+import { type MdDetail, parseMdadmDetail } from '@ohr/shared/parsers/mdadm-detail';
+import type { MdArrayDefinition } from '@ohr/shared/parsers/mdadm-scan';
 import {
   type Layout,
   type PlannedPartition,
@@ -22,7 +24,7 @@ import {
 
 import { runChecked, runCommand } from '../command-runner.ts';
 import { driveRole } from '../drive-roles.ts';
-import { makeFilesystem } from './filesystem.ts';
+import { makeFilesystem, readFilesystem } from './filesystem.ts';
 import { blockDeviceIo, readLabel, writeLabel } from './label-partition.ts';
 import {
   createLogicalVolume,
@@ -31,7 +33,9 @@ import {
   logicalVolumePath,
 } from './lvm.ts';
 import { createArray, mdArrayPath } from './md-array.ts';
+import { arrayDefinition, writeMdadmConf } from './mdadm-conf.ts';
 import { mountVolume, readMount, unmountVolume } from './mount.ts';
+import { installMountUnit, removeMountUnit } from './mount-unit.ts';
 import { partitionDrive, partitionPath } from './partition-drive.ts';
 
 const MIB = 1024 ** 2;
@@ -64,6 +68,8 @@ const arrays: string[] = [];
 let volumeGroupCreated = false;
 /** Mount points still mounted, unmounted first in teardown. */
 const mounts: string[] = [];
+/** Mount points with a runtime mount unit, removed first in teardown. */
+const mountUnits: string[] = [];
 let workDir = '';
 
 async function readTable(device: string): Promise<SfdiskTable> {
@@ -101,6 +107,9 @@ async function attachLoopDevices(): Promise<void> {
 }
 
 async function tearDown(): Promise<void> {
+  for (const mountPoint of mountUnits) {
+    await removeMountUnit(runCommand, mountPoint, 'runtime').catch(() => undefined);
+  }
   for (const mountPoint of mounts) {
     await runCommand('umount', [mountPoint]);
   }
@@ -135,6 +144,19 @@ async function createTierArray(tier: PlannedTier): Promise<CreatedArray> {
   });
   const size = await runChecked(runCommand, 'blockdev', ['--getsize64', path]);
   return { detail, members, sizeBytes: Number(size.trim()) };
+}
+
+/** What a reboot does to the pool: LVM down, arrays stopped, then assembled from the config file and LVM up. */
+async function simulateReboot(confPath: string): Promise<void> {
+  await runChecked(runCommand, 'vgchange', ['--activate', 'n', VOLUME_GROUP]);
+  for (const path of arrays) {
+    await runChecked(runCommand, 'mdadm', ['--stop', path]);
+  }
+  await runChecked(runCommand, 'udevadm', ['settle']);
+  await runChecked(runCommand, 'mdadm', ['--assemble', '--scan', `--config=${confPath}`]);
+  await runChecked(runCommand, 'udevadm', ['settle']);
+  await runChecked(runCommand, 'vgchange', ['--activate', 'y', VOLUME_GROUP]);
+  await runChecked(runCommand, 'udevadm', ['settle']);
 }
 
 describe.skipIf(!isRoot)('executors on loop devices', () => {
@@ -290,5 +312,62 @@ describe.skipIf(!isRoot)('executors on loop devices', () => {
     await unmountVolume(runCommand, mountPoint);
     mounts.pop();
     expect(await readdir(mountPoint)).toEqual([]);
+  });
+
+  it('writes an mdadm config the pool reassembles from after a simulated reboot', async () => {
+    const { tiers } = plannedLayout();
+    const definitions: MdArrayDefinition[] = [];
+    for (const tier of tiers) {
+      definitions.push(await arrayDefinition(runCommand, mdArrayPath(POOL, tier.tier)));
+    }
+    expect(definitions.map((definition) => definition.device)).toEqual(arrays);
+    const confPath = await writeMdadmConf(POOL, definitions, {
+      confDir: join(workDir, 'mdadm.conf.d'),
+    });
+    await simulateReboot(confPath);
+    for (const tier of tiers) {
+      const detail = parseMdadmDetail(
+        await runChecked(runCommand, 'mdadm', [
+          '--detail',
+          '--export',
+          mdArrayPath(POOL, tier.tier),
+        ]),
+      );
+      expect(detail).toMatchObject({ devName: `ohr_${POOL}_t${tier.tier}`, level: tier.level });
+    }
+    const data = await readFilesystem(runCommand, logicalVolumePath(POOL, 'data'));
+    expect(data).toMatchObject({ type: 'btrfs', label: 'data' });
+  });
+
+  it('mounts a volume through a systemd mount unit and removes it again', async () => {
+    const mountPoint = join(workDir, 'unit');
+    mountUnits.push(mountPoint);
+    const unit = await installMountUnit(
+      runCommand,
+      {
+        poolId: POOL,
+        volume: 'data',
+        device: logicalVolumePath(POOL, 'data'),
+        type: 'btrfs',
+        mountPoint,
+      },
+      'runtime',
+    );
+    const escaped = await runChecked(runCommand, 'systemd-escape', [
+      '-p',
+      '--suffix=mount',
+      mountPoint,
+    ]);
+    expect(unit.unitName).toBe(escaped.trim());
+    expect(unit.unitPath).toBe(`/run/systemd/system/${unit.unitName}`);
+    const mount = await readMount(runCommand, mountPoint);
+    expect(mount).toMatchObject({ target: mountPoint, fsType: 'btrfs' });
+    expect(mount.options).toContain('subvol=/@data');
+    const active = await runChecked(runCommand, 'systemctl', ['is-active', unit.unitName]);
+    expect(active.trim()).toBe('active');
+    await removeMountUnit(runCommand, mountPoint, 'runtime');
+    mountUnits.pop();
+    await expect(readMount(runCommand, mountPoint)).rejects.toThrow();
+    expect(existsSync(unit.unitPath)).toBe(false);
   });
 });
