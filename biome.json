@@ -133,7 +133,7 @@
       }
     },
     {
-      "includes": ["**/*.integration.test.ts"],
+      "includes": ["**/*.integration.test.ts", "**/loop-devices-test-helpers.ts"],
       "linter": {
         "rules": {
           "performance": {
