@@ -27,14 +27,18 @@ that the CLI makes today belong, and how a client follows a running job.
   the server transport. It runs in Node only, which is why it is not part of
   `@ohr/shared`. The contract lists every method with a zod schema for its
   params and its result, and every event with a schema for its data; it
-  reuses the schemas in `@ohr/shared` for snapshots, plans, and jobs.
+  reuses the schemas in `@ohr/shared` for snapshots, plans, and jobs. The
+  `noNodejsModules` exception that decision 0002 gives `core`, `web`, and
+  `cli` covers `rpc` too.
   Core validates params against the contract and rejects anything else with
   `invalid-params` before a handler runs. Clients validate results the same
   way. Adding a method means adding it to the contract first.
-- Error codes are a closed list in the contract: `invalid-params`,
-  `not-found`, `conflict` (another job holds the pool), `state-changed` (the
-  state hash no longer matches), `rejected` (a safety check said no, with the
-  reasons), and `internal`.
+- Error codes are a closed list in the contract: `invalid-request` (not
+  JSON, not a request, or an unknown method), `invalid-params`, `not-found`,
+  `conflict` (another job holds the pool), `state-changed` (the state hash
+  no longer matches), `rejected` (a safety check said no, with the reasons),
+  and `internal`. An `internal` error says only that something failed; the
+  details go to core's log, not to the client.
 - The client and server are written on `node:net` with no dependency. JSON-RPC
   2.0 was considered; its batch and notification rules add nothing here, and
   HTTP over the socket would duplicate the REST layer that `ohr-web` already
