@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
 
+import { runChecked } from '@ohr/core/command-runner';
+import { driveRole } from '@ohr/core/drive-roles';
 import type { JobDefinition } from '@ohr/core/jobs/engine';
 import { buildPoolCreateJob } from '@ohr/core/jobs/pool-create';
 import { type DriveState, readSystemState, type SystemSnapshot } from '@ohr/core/system-state';
 import { DEFAULT_DATABASE_PATH, type Redundancy } from '@ohr/shared/constants';
 import { isValidPoolId, mdArrayName, volumeGroupName } from '@ohr/shared/naming';
+import { LSBLK_COLUMNS, parseLsblk } from '@ohr/shared/parsers/lsblk';
 import { describePlanError, planPool } from '@ohr/shared/planner';
 import type { PoolCreateInput } from '@ohr/shared/pool-create-input';
 
@@ -19,6 +22,7 @@ interface CreateOptions {
   readonly poolId: string;
   readonly redundancy: Redundancy;
   readonly wipe: boolean;
+  readonly allowLoop: boolean;
   readonly yes: boolean;
   readonly database: string;
   readonly devices: readonly string[];
@@ -39,6 +43,7 @@ function parseCreateOptions(args: readonly string[]): CreateOptions {
       redundancy: { type: 'string' },
       id: { type: 'string' },
       wipe: { type: 'boolean', default: false },
+      'allow-loop': { type: 'boolean', default: false },
       yes: { type: 'boolean', default: false },
       database: { type: 'string', default: DEFAULT_DATABASE_PATH },
     },
@@ -55,6 +60,7 @@ function parseCreateOptions(args: readonly string[]): CreateOptions {
     poolId: values.id,
     redundancy: parseRedundancy(values.redundancy),
     wipe: values.wipe,
+    allowLoop: values['allow-loop'],
     yes: values.yes,
     database: values.database,
     devices: positionals,
@@ -62,9 +68,13 @@ function parseCreateOptions(args: readonly string[]): CreateOptions {
 }
 
 /** What stops the pool from being created on these drives, or nothing. */
-function driveProblems(options: CreateOptions, snapshot: SystemSnapshot): string[] {
+function driveProblems(
+  options: CreateOptions,
+  snapshot: SystemSnapshot,
+  candidates: readonly DriveState[],
+): string[] {
   const problems: string[] = [];
-  const known = new Map(snapshot.drives.map((drive) => [drive.device.path, drive]));
+  const known = new Map(candidates.map((drive) => [drive.device.path, drive]));
   for (const path of options.devices) {
     const drive = known.get(path);
     if (drive === undefined) {
@@ -97,9 +107,12 @@ function describeContents(drive: DriveState): string {
   return device.fsType ?? 'a signature';
 }
 
-function buildInput(options: CreateOptions, snapshot: SystemSnapshot): PoolCreateInput | string {
+function buildInput(
+  options: CreateOptions,
+  candidates: readonly DriveState[],
+): PoolCreateInput | string {
   const drives = options.devices.map((path) => {
-    const drive = snapshot.drives.find((candidate) => candidate.device.path === path);
+    const drive = candidates.find((candidate) => candidate.device.path === path);
     if (drive === undefined) {
       throw new Error(`${path} vanished`);
     }
@@ -128,6 +141,19 @@ function buildInput(options: CreateOptions, snapshot: SystemSnapshot): PoolCreat
   };
 }
 
+/** Attached loop devices, as drives. Only used with --allow-loop, for testing. */
+async function loopDrives(io: Io): Promise<DriveState[]> {
+  const text = await runChecked(io.run, 'lsblk', [
+    '--json',
+    '--bytes',
+    '--output',
+    LSBLK_COLUMNS.join(','),
+  ]);
+  return parseLsblk(text)
+    .filter((device) => device.type === 'loop' && device.sizeBytes > 0)
+    .map((device) => ({ device, role: driveRole(device), smart: null }));
+}
+
 function printPreview(io: Io, input: PoolCreateInput, definition: JobDefinition): void {
   io.stdout(`Pool ${input.poolId}`);
   printLayout(io, input.layout);
@@ -149,14 +175,18 @@ async function createPool(args: readonly string[], io: Io): Promise<number> {
     readFile: io.readFile,
     includeSmart: false,
   });
-  const problems = driveProblems(options, snapshot);
+  const candidates = [...snapshot.drives];
+  if (options.allowLoop) {
+    candidates.push(...(await loopDrives(io)));
+  }
+  const problems = driveProblems(options, snapshot, candidates);
   for (const problem of problems) {
     io.stderr(problem);
   }
   if (problems.length > 0) {
     return EXIT_FAILURE;
   }
-  const input = buildInput(options, snapshot);
+  const input = buildInput(options, candidates);
   if (typeof input === 'string') {
     io.stderr(input);
     return EXIT_FAILURE;
@@ -185,6 +215,8 @@ Options:
                  group ohr-<id> and the arrays ohr_<id>_t<n>.
   --redundancy   shr1 survives one drive failure, shr2 survives two.
   --wipe         Erase drives that hold partitions, a filesystem, or a pool.
+  --allow-loop   Also accept loop devices. For testing only: a pool on loop
+                 devices does not come back after a reboot by itself.
   --yes          Skip the confirmation.
   --database     Job database path, for testing. Default ${DEFAULT_DATABASE_PATH}.`;
 

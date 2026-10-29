@@ -74,4 +74,42 @@ describe('ohr pool create', () => {
     expect(result.code).toBe(1);
     expect(result.stderr).toContain('needs at least 4 drives');
   });
+
+  it('accepts loop devices only with --allow-loop', async () => {
+    const machine = emptyDrivesMachine();
+    const lsblk = JSON.parse(String((machine.get('lsblk') as { stdout: string }).stdout)) as {
+      blockdevices: Record<string, unknown>[];
+    };
+    for (const name of ['loop7', 'loop8']) {
+      lsblk.blockdevices.push({
+        ...lsblk.blockdevices[1],
+        name,
+        path: `/dev/${name}`,
+        type: 'loop',
+        serial: null,
+      });
+    }
+    machine.set('lsblk', {
+      kind: 'exited',
+      exitCode: 0,
+      stdout: JSON.stringify(lsblk),
+      stderr: '',
+    });
+    const args = [
+      'pool',
+      'create',
+      '--id',
+      'p2',
+      '--redundancy',
+      'shr1',
+      '/dev/loop7',
+      '/dev/loop8',
+    ];
+    const refused = await runCli(args, machine, new Map());
+    expect(refused.code).toBe(1);
+    expect(refused.stderr).toContain('/dev/loop7 is not a physical drive');
+    const allowed = await runCli([...args, '--allow-loop'], machine, new Map(), { answer: 'no' });
+    expect(allowed.stdout).toContain('1. partition /dev/loop7');
+    expect(allowed.stderr).toBe('Cancelled. Nothing was changed.');
+  });
 });
