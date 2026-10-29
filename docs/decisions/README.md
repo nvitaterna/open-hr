@@ -14,3 +14,6 @@ Copy [0000-template.md](0000-template.md) to start a new one.
 | 0004   | [Partition names, label partition, and md and LVM overhead](0004-on-disk-format.md) | Accepted |
 | 0005   | [Boot-time assembly and mount units](0005-boot-time-assembly.md)                    | Accepted |
 | 0006   | [Job engine and database](0006-job-engine.md)                                       | Accepted |
+| 0007   | [Core daemon, RPC protocol, and the CLI as a client](0007-core-daemon-and-rpc.md)   | Accepted |
+| 0008   | [Web server, authentication, and the REST and SSE API](0008-web-auth-and-api.md)    | Accepted |
+| 0009   | [Packaging, install script, and the 0.1 release](0009-packaging-and-release.md)     | Accepted |
