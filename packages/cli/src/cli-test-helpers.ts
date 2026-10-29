@@ -17,6 +17,40 @@ function ok(stdout: string): CommandResult {
   return { kind: 'exited', exitCode: 0, stdout, stderr: '' };
 }
 
+const GIB = 1_073_741_824;
+const FAKE_DISK_GIB = 4;
+const FAKE_DISK_BYTES = FAKE_DISK_GIB * GIB;
+
+function emptyDisk(name: string, sizeBytes: number, serial: string): string {
+  return JSON.stringify({
+    name,
+    path: `/dev/${name}`,
+    pkname: null,
+    type: 'disk',
+    size: sizeBytes,
+    model: 'Fake Disk',
+    serial,
+    wwn: null,
+    tran: 'sata',
+    rota: true,
+    rm: false,
+    ro: false,
+    fstype: null,
+    uuid: null,
+    partuuid: null,
+    partlabel: null,
+    parttype: null,
+    partn: null,
+    mountpoints: [null],
+  });
+}
+
+export interface CliOptions {
+  /** What the fake user types at a confirmation prompt. */
+  readonly answer?: string;
+  readonly isRoot?: boolean;
+}
+
 export interface CliResult {
   readonly code: number;
   readonly stdout: string;
@@ -64,11 +98,35 @@ export function vmFiles(mdstat: 'mdstat.txt' | 'mdstat-resync.txt'): ReadonlyMap
   return new Map([['/proc/mdstat', fixture(`vm-shr1/${mdstat}`)]]);
 }
 
+/** The worked example's system drive plus two empty 4 GiB disks, sdx and sdy, and no pool. */
+export function emptyDrivesMachine(): Map<string, CommandResult> {
+  const example = JSON.parse(fixture('example-shr1/lsblk.json')) as {
+    blockdevices: { name: string }[];
+  };
+  const system = example.blockdevices.find((device) => device.name === 'nvme0n1');
+  const lsblk = JSON.stringify({
+    blockdevices: [
+      system,
+      JSON.parse(emptyDisk('sdx', FAKE_DISK_BYTES, 'X1')),
+      JSON.parse(emptyDisk('sdy', FAKE_DISK_BYTES, 'Y1')),
+    ],
+  });
+  const emptyReport = (key: string): string => JSON.stringify({ report: [{ [key]: [] }] });
+  return new Map<string, CommandResult>([
+    ['lsblk', ok(lsblk)],
+    ['findmnt', ok(fixture('example-shr1/findmnt.json'))],
+    ['pvs', ok(emptyReport('pv'))],
+    ['vgs', ok(emptyReport('vg'))],
+    ['lvs', ok(emptyReport('lv'))],
+  ]);
+}
+
 /** Runs the CLI against a fake machine and captures its output. */
 export async function runCli(
   args: readonly string[],
   answers: ReadonlyMap<string, CommandResult> = exampleMachine(),
   files: ReadonlyMap<string, string> = exampleFiles(),
+  options: CliOptions = {},
 ): Promise<CliResult> {
   const stdout: string[] = [];
   const stderr: string[] = [];
@@ -81,6 +139,11 @@ export async function runCli(
           answers.get(command) ?? { kind: 'not-found' },
       ),
     readFile: (path) => Promise.resolve(files.get(path) ?? null),
+    confirm: (question) => {
+      stdout.push(question);
+      return Promise.resolve(options.answer ?? '');
+    },
+    isRoot: () => options.isRoot ?? true,
   };
   const code = await run(args, io);
   return { code, stdout: stdout.join('\n'), stderr: stderr.join('\n') };

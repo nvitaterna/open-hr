@@ -10,6 +10,10 @@ export interface Io {
   readonly stderr: (line: string) => void;
   readonly run: CommandRunner;
   readonly readFile: FileReader;
+  /** Asks the user a question on the terminal and returns what they typed. */
+  readonly confirm: (question: string) => Promise<string>;
+  /** True when running as root, which structural changes need. */
+  readonly isRoot: () => boolean;
 }
 
 /** Raised for bad command-line input. Shown with the usage text and exit code 2. */
