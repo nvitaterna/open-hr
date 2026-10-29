@@ -1,0 +1,14 @@
+#!/bin/sh
+# On purge, removes Open HR's own configuration and databases. Never touches
+# pools, mount units, or /etc/mdadm (decision 0009). The ohr user stays, as
+# files may still belong to it.
+set -e
+
+case "$1" in
+  purge) rm -rf /etc/ohr /var/lib/ohr ;;
+  *) ;;
+esac
+
+if [ -d /run/systemd/system ]; then
+  systemctl daemon-reload || true
+fi

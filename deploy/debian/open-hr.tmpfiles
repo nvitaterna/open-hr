@@ -1,0 +1,3 @@
+# /run/ohr holds ohr-core's socket: root and the ohr group only (decision 0007).
+# systemd-tmpfiles creates it at boot; postinst creates it on install.
+d /run/ohr 0750 root ohr -

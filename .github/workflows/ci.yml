@@ -54,3 +54,45 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: sudo env "PATH=$PATH" pnpm --filter @ohr/core test:integration
+
+  package:
+    name: Package, install, and remove
+    runs-on: ubuntu-latest
+    env:
+      NFPM_VERSION: 2.48.0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install nfpm
+        run: |
+          file="nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz"
+          base="https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}"
+          curl -fsSLO "$base/$file"
+          curl -fsSL "$base/checksums.txt" | grep " $file\$" | sha256sum --check -
+          sudo tar -xzf "$file" -C /usr/local/bin nfpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm package
+      - name: Install the package
+        run: sudo DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends ./deploy/out/open-hr_*.deb
+      - name: Smoke test the installed package
+        run: sudo --preserve-env=GITHUB_ACTIONS deploy/smoke-test.sh
+      - name: Reinstall keeps the token and the certificate
+        run: |
+          token=$(sudo cat /var/lib/ohr/web/setup-token)
+          cert=$(sudo sha256sum /etc/ohr/tls/cert.pem)
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends --reinstall ./deploy/out/open-hr_*.deb
+          [ "$(sudo cat /var/lib/ohr/web/setup-token)" = "$token" ]
+          [ "$(sudo sha256sum /etc/ohr/tls/cert.pem)" = "$cert" ]
+          sudo --preserve-env=GITHUB_ACTIONS deploy/smoke-test.sh
+      - name: Remove keeps the data, purge removes it
+        run: |
+          sudo apt-get remove --yes open-hr
+          if systemctl is-active --quiet ohr-core.service; then exit 1; fi
+          sudo test -f /var/lib/ohr/web/setup-token
+          sudo apt-get purge --yes open-hr
+          test ! -e /etc/ohr
+          test ! -e /var/lib/ohr

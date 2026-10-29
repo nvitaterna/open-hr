@@ -1,6 +1,10 @@
 packages:
   - "packages/*"
 
+# Dependencies whose install scripts may run. esbuild's checks that its binary matches this platform.
+allowBuilds:
+  esbuild: true
+
 # One place for shared tool versions. Packages refer to these as "catalog:".
 catalog:
   "@fastify/cookie": ^11.1.5

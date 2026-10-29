@@ -86,7 +86,8 @@
         "packages/rpc/**",
         "packages/web/**",
         "packages/cli/**",
-        "packages/ui/vite.config.ts"
+        "packages/ui/vite.config.ts",
+        "deploy/**"
       ],
       "linter": {
         "rules": {

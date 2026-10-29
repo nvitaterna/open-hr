@@ -1,0 +1,79 @@
+#!/bin/sh
+# Sets up Open HR after the package is unpacked (decision 0009): the ohr user,
+# the data directories, a self-signed certificate, the one-time setup token,
+# and the two services. Never touches pools, drives, or mdadm files.
+set -e
+
+TLS=/etc/ohr/tls
+DATA=/var/lib/ohr
+WEB_DATA=$DATA/web
+PORT=7700
+# Ten years: users replace it with their own certificate when they have one.
+CERT_DAYS=3650
+
+case "$1" in
+  configure) ;;
+  *) exit 0 ;;
+esac
+
+systemd-sysusers open-hr.conf
+systemd-tmpfiles --create open-hr.conf
+
+install -d -m 0755 -o root -g root /etc/ohr "$DATA"
+install -d -m 0750 -o ohr -g ohr "$WEB_DATA"
+install -d -m 0750 -o root -g ohr "$TLS"
+
+host=$(hostname)
+addresses=$(hostname -I 2>/dev/null || true)
+if [ ! -f "$TLS/key.pem" ] || [ ! -f "$TLS/cert.pem" ]; then
+  names="DNS:$host,DNS:localhost,IP:127.0.0.1"
+  fqdn=$(hostname -f 2>/dev/null || true)
+  if [ -n "$fqdn" ] && [ "$fqdn" != "$host" ]; then
+    names="$names,DNS:$fqdn"
+  fi
+  for address in $addresses; do
+    names="$names,IP:$address"
+  done
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+    -days "$CERT_DAYS" -subj "/CN=$host" -addext "subjectAltName=$names" \
+    -keyout "$TLS/key.pem" -out "$TLS/cert.pem" 2>/dev/null
+fi
+chown root:ohr "$TLS/key.pem" "$TLS/cert.pem"
+chmod 0640 "$TLS/key.pem"
+chmod 0644 "$TLS/cert.pem"
+
+token_line=""
+if [ ! -f "$WEB_DATA/web.db" ] && [ ! -f "$WEB_DATA/setup-token" ]; then
+  # Read all of its output: closing the pipe early would make it fail.
+  token_output=$(/usr/bin/ohr-web setup-token --data "$WEB_DATA")
+  token_line=$(printf '%s\n' "$token_output" | sed -n 1p)
+fi
+
+if [ -d /run/systemd/system ]; then
+  systemctl daemon-reload
+  systemctl enable ohr-core.service ohr-web.service >/dev/null 2>&1
+  systemctl restart ohr-core.service ohr-web.service
+fi
+
+# The first IPv4 address, which works from other machines without DNS.
+url_host=$host
+for address in $addresses; do
+  case "$address" in
+    *.*)
+      url_host=$address
+      break
+      ;;
+    *) ;;
+  esac
+done
+echo
+echo "Open HR is running. Open https://$url_host:$PORT in a browser."
+echo "The certificate is self-signed, so the browser warns once; that is expected."
+if [ -n "$token_line" ]; then
+  echo "$token_line"
+  echo "Enter it on the setup page to create the admin account."
+elif [ -f "$WEB_DATA/setup-token" ]; then
+  echo "The setup token is in $WEB_DATA/setup-token."
+fi
+echo "Open HR is a pre-release: do not trust it with the only copy of your data."
+echo

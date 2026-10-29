@@ -19,34 +19,39 @@ pre-release needs.
 - Each process is bundled with esbuild into one ES module file:
   `core.mjs`, `web.mjs`, and `cli.mjs`. Third-party code is inlined; only
   `node:` built-ins stay external. The UI is the Vite build output.
-- The package bundles the official Node binary for the version in `.nvmrc`,
-  downloaded in CI and checked against the `SHASUMS256.txt` that the Node
-  project signs. Only `amd64` in 0.1; `arm64` follows once there is a machine
-  to test it on.
+- The package bundles the official Node binary for the exact version in
+  `.nvmrc`, which CI uses too. `deploy/package.sh` downloads it and checks it
+  against the Node project's `SHASUMS256.txt`, fetched over HTTPS. Checking
+  that file's GPG signature as well is left for the release automation in M7.
+  Only `amd64` in 0.1; `arm64` follows once there is a machine to test it on.
 - nfpm builds `open-hr_<version>_amd64.deb` from `deploy/debian/nfpm.yaml`.
   `pnpm package` runs the whole build locally.
 
 ### Installed layout
 
-| Path                                | What                                                    |
-| ----------------------------------- | ------------------------------------------------------- |
-| `/opt/ohr/node/bin/node`            | bundled Node                                            |
-| `/opt/ohr/lib/{core,web,cli}.mjs`   | bundles                                                 |
-| `/opt/ohr/ui/`                      | UI build                                                |
-| `/usr/bin/ohr`                      | wrapper that runs the CLI bundle with the bundled Node  |
-| `/lib/systemd/system/ohr-*.service` | `ohr-core` (root) and `ohr-web` (user `ohr`)            |
-| `/etc/ohr/`                         | configuration and `tls/`                                |
-| `/var/lib/ohr/`                     | core database; `web/` belongs to `ohr`                  |
-| `/run/ohr/`                         | the socket, created by `ohr-core` (`RuntimeDirectory=`) |
+| Path                                    | What                                                       |
+| --------------------------------------- | ---------------------------------------------------------- |
+| `/opt/ohr/node/bin/node`                | bundled Node                                               |
+| `/opt/ohr/lib/{core,web,cli}.mjs`       | bundles                                                    |
+| `/opt/ohr/ui/`                          | UI build                                                   |
+| `/usr/bin/ohr`, `/usr/bin/ohr-web`      | wrappers that run the bundles with the bundled Node        |
+| `/usr/lib/systemd/system/ohr-*.service` | `ohr-core` (root) and `ohr-web` (user `ohr`)               |
+| `/usr/lib/sysusers.d/open-hr.conf`      | the `ohr` system user and group                            |
+| `/usr/lib/tmpfiles.d/open-hr.conf`      | creates `/run/ohr` at boot                                 |
+| `/etc/ohr/`                             | configuration and `tls/`                                   |
+| `/var/lib/ohr/`                         | core database; `web/` belongs to `ohr`                     |
+| `/run/ohr/`                             | the socket's directory, `root:ohr` 0750, from `tmpfiles.d` |
 - `ohr-web` has `After=` and `Requires=ohr-core.service` and retries the
   socket with backoff, so a core restart does not leave web broken.
 - `ohr-web` runs with `NoNewPrivileges`, `ProtectSystem=strict`,
   `ProtectHome`, `PrivateTmp`, and write access only to `/var/lib/ohr/web`.
   `ohr-core` needs the devices and `/etc`, so it gets `PrivateTmp` and
   `ProtectHome` only.
-- `postinst` creates the `ohr` system user and group, the certificate, and
-  the setup token (decision 0008), enables and starts both services, and
-  prints the setup URL. `prerm` stops the services. Removing or purging the
+- `postinst` creates the `ohr` system user and group with
+  `systemd-sysusers`, the certificate, and the setup token (decision 0008),
+  enables and starts both services, and prints the setup URL with the first
+  IPv4 address. A reinstall or upgrade keeps an existing certificate, token,
+  and database. `prerm` stops the services. Removing or purging the
   package never touches pools, mount units, or mdadm files; purge removes
   `/etc/ohr` and `/var/lib/ohr` only.
 - Package dependencies: `mdadm`, `lvm2`, `btrfs-progs`, `e2fsprogs`, `gdisk`,
@@ -62,6 +67,9 @@ pre-release needs.
   it, and installs it with `apt-get install ./open-hr_*.deb` so apt pulls the
   dependencies. The apt repository on GitHub Pages moves to M7 with the rest
   of the release automation.
+- CI builds the package on every pull request, installs it on the runner,
+  runs `deploy/smoke-test.sh` (services, HTTPS setup page, CLI, owners and
+  modes), reinstalls it, removes it, and purges it.
 - Pushing a tag `v*` runs a release workflow: the full check and integration
   suites, then the package build, then a GitHub release with the `.deb`, its
   SHA-256, and `install.sh`. Every `0.x` version, and any version with a

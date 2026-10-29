@@ -1,0 +1,70 @@
+# The open-hr .deb (decision 0009). deploy/package.sh stages deploy/out/stage
+# and sets OHR_VERSION before running nfpm from the repository root.
+name: open-hr
+arch: amd64
+platform: linux
+version: ${OHR_VERSION}
+version_schema: semver
+section: admin
+priority: optional
+maintainer: Open HR maintainers <nvitaterna@users.noreply.github.com>
+description: |
+  Hybrid RAID for Linux, like Synology Hybrid RAID.
+  Open HR builds pools from drives of mixed sizes with mdadm and LVM, and
+  manages them from a web interface and the ohr command line. Pre-release:
+  do not trust it with the only copy of your data.
+vendor: Open HR
+homepage: https://github.com/nvitaterna/open-hr
+license: MIT
+
+depends:
+  - mdadm
+  - lvm2
+  - btrfs-progs
+  - e2fsprogs
+  - gdisk
+  - util-linux
+  - udev
+  - openssl
+  - systemd
+recommends:
+  - cryptsetup
+  - smartmontools
+
+contents:
+  - src: deploy/out/stage/opt/ohr
+    dst: /opt/ohr
+    type: tree
+  - src: deploy/debian/ohr
+    dst: /usr/bin/ohr
+    file_info:
+      mode: 0755
+  - src: deploy/debian/ohr-web
+    dst: /usr/bin/ohr-web
+    file_info:
+      mode: 0755
+  - src: deploy/debian/ohr-core.service
+    dst: /usr/lib/systemd/system/ohr-core.service
+    file_info:
+      mode: 0644
+  - src: deploy/debian/ohr-web.service
+    dst: /usr/lib/systemd/system/ohr-web.service
+    file_info:
+      mode: 0644
+  - src: deploy/debian/open-hr.tmpfiles
+    dst: /usr/lib/tmpfiles.d/open-hr.conf
+    file_info:
+      mode: 0644
+  - src: deploy/debian/open-hr.sysusers
+    dst: /usr/lib/sysusers.d/open-hr.conf
+    file_info:
+      mode: 0644
+  - src: LICENSE
+    dst: /usr/share/doc/open-hr/copyright
+    file_info:
+      mode: 0644
+
+scripts:
+  postinstall: deploy/debian/postinst
+  preremove: deploy/debian/prerm
+  postremove: deploy/debian/postrm

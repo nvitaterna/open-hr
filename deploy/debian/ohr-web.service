@@ -1,0 +1,27 @@
+[Unit]
+Description=Open HR web interface
+Documentation=https://github.com/nvitaterna/open-hr
+After=ohr-core.service network-online.target
+Wants=network-online.target
+Requires=ohr-core.service
+
+[Service]
+Type=simple
+User=ohr
+Group=ohr
+ExecStart=/opt/ohr/node/bin/node /opt/ohr/lib/web.mjs --port 7700 --data /var/lib/ohr/web --tls /etc/ohr/tls --socket /run/ohr/core.sock --ui /opt/ohr/ui
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+ReadWritePaths=/var/lib/ohr/web
+
+[Install]
+WantedBy=multi-user.target
