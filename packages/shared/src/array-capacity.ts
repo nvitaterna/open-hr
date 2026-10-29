@@ -15,20 +15,6 @@ const MD_HEADROOM_DIVISOR = 1024;
 const RAID5_PARITY = 1;
 const RAID6_PARITY = 2;
 
-/** Members whose space holds data rather than parity or mirror copies. */
-function dataMembers(level: RaidLevel, members: number): number {
-  switch (level) {
-    case 'raid1':
-      return 1;
-    case 'raid5':
-      return members - RAID5_PARITY;
-    case 'raid6':
-      return members - RAID6_PARITY;
-    default:
-      throw new Error(`Unhandled RAID level: ${String(level satisfies never)}`);
-  }
-}
-
 /**
  * Space mdadm keeps at the start of each member: 1 MiB for the superblock and
  * bitmap, plus headroom of the largest power of two up to 128 MiB that is at
@@ -51,6 +37,20 @@ function stripeBytes(level: RaidLevel, members: number): number {
 }
 
 export type RaidLevel = 'raid1' | 'raid5' | 'raid6';
+
+/** Members whose space holds data rather than parity or mirror copies. */
+export function dataMembers(level: RaidLevel, members: number): number {
+  switch (level) {
+    case 'raid1':
+      return 1;
+    case 'raid5':
+      return members - RAID5_PARITY;
+    case 'raid6':
+      return members - RAID6_PARITY;
+    default:
+      throw new Error(`Unhandled RAID level: ${String(level satisfies never)}`);
+  }
+}
 
 /** Size of an md array built from `members` partitions of `sliceBytes` each. */
 export function arrayBytesFor(level: RaidLevel, members: number, sliceBytes: number): number {

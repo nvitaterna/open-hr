@@ -4,7 +4,10 @@
 # /var/lib/ohr, so an installed Open HR is not touched. Ctrl-C stops all three.
 #
 #   pnpm dev                 # then open http://localhost:5173
+#   pnpm dev --host          # also listen on the network, to browse from another computer
 #   OHR_DEV_LOOP=1 pnpm dev  # also show loop devices, for testing on loop files
+#
+# Options after `pnpm dev` go to Vite.
 #
 # ohr-core can do anything a pool needs, so run this only on a test machine.
 set -euo pipefail
@@ -57,4 +60,4 @@ PIDS+=($!)
 
 echo "ohr-core and ohr-web logs: $DEV/core.log, $DEV/web.log"
 echo "A forgotten setup token is in $DEV/web/setup-token."
-OHR_WEB_URL="http://127.0.0.1:$WEB_PORT" pnpm --filter @ohr/ui dev
+OHR_WEB_URL="http://127.0.0.1:$WEB_PORT" pnpm --filter @ohr/ui dev "$@"

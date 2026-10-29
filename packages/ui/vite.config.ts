@@ -1,3 +1,5 @@
+import { hostname } from 'node:os';
+
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { loadEnv } from 'vite';
@@ -14,6 +16,8 @@ export default defineConfig(({ mode }) => {
     server: {
       port: DEV_PORT,
       strictPort: true,
+      // With --host, browsing from another computer by this machine's name, such as http://ohr-dev:5173.
+      allowedHosts: [hostname()],
       // changeOrigin stays false: web checks Origin against the Host the browser used.
       proxy: { '/api': { target: webUrl } },
     },

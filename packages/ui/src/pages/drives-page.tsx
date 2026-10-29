@@ -4,10 +4,10 @@ import { type DriveView, deriveDrives } from '@ohr/shared/pool-view';
 import { formatSize } from '@ohr/shared/sizes';
 
 import { useDrives, useSmartRead } from '../api/queries.ts';
+import { DataTable } from '../components/data-table.tsx';
 import { ErrorMessage, Loading } from '../components/page-states.tsx';
+import { CELL, NONE } from '../components/table-styles.ts';
 import { formatTime, ROLE_LABELS } from '../labels.ts';
-
-const NONE = '—';
 
 function smart(drive: DriveView): string {
   if (drive.smartPassed === null) {
@@ -38,7 +38,6 @@ function kind(drive: DriveView): string {
 }
 
 const HEADINGS = ['Drive', 'Model', 'Serial', 'Size', 'Type', 'Role', 'Temperature', 'SMART'];
-const CELL = 'px-3 py-2.5 whitespace-nowrap';
 
 function DriveRow({ drive }: { readonly drive: DriveView }): ReactElement {
   let role = ROLE_LABELS[drive.role];
@@ -66,24 +65,11 @@ const BUTTON =
 
 function DriveTable({ drives }: { readonly drives: readonly DriveView[] }): ReactElement {
   return (
-    <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-      <table className="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
-        <thead className="bg-zinc-50 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
-          <tr>
-            {HEADINGS.map((heading) => (
-              <th key={heading} scope="col" className={`${CELL} text-left font-medium`}>
-                {heading}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-          {drives.map((drive) => (
-            <DriveRow key={drive.path} drive={drive} />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable headings={HEADINGS}>
+      {drives.map((drive) => (
+        <DriveRow key={drive.path} drive={drive} />
+      ))}
+    </DataTable>
   );
 }
 

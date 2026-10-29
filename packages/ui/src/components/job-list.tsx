@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { Link } from 'react-router';
 
 import type { JobRecord } from '@ohr/shared/jobs';
 
@@ -21,9 +22,12 @@ function JobLine({ job }: { readonly job: JobRecord }): ReactElement {
   return (
     <li className="py-2.5 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="text-sm font-medium">
+        <Link
+          to={`/jobs/${job.id}`}
+          className="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+        >
           {JOB_KIND_LABELS[job.kind]} on {job.poolId}
-        </span>
+        </Link>
         <StatusBadge status={job.status} />
         <span className="ml-auto text-xs text-zinc-500 dark:text-zinc-400">
           {formatTime(job.createdAt)}
