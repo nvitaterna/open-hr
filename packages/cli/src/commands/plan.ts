@@ -92,7 +92,8 @@ function partitionSummary(layout: Layout, driveId: string): string {
     .join(', ');
 }
 
-function printLayout(io: Io, layout: Layout): void {
+/** Prints a layout as tiers and drives. Shared with pool create. */
+export function printLayout(io: Io, layout: Layout): void {
   io.stdout(`${REDUNDANCY_TITLES[layout.redundancy]} plan for ${layout.drives.length} drives`);
   io.stdout(
     `Usable capacity: ${formatSize(layout.usableBytes)} of ${formatSize(layout.rawBytes)} raw`,

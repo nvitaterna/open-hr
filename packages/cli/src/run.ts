@@ -1,6 +1,7 @@
 import { PROJECT_NAME, SHORT_NAME } from '@ohr/shared/constants';
 
 import { PLAN_USAGE, planCommand } from './commands/plan.ts';
+import { POOL_USAGE, poolCommand } from './commands/pool.ts';
 import { STATUS_USAGE, statusCommand } from './commands/status.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type Io, UsageError } from './io.ts';
 
@@ -11,12 +12,14 @@ Usage: ${SHORT_NAME} <command> [options]
 Commands:
   status     Show drives, RAID arrays, and volume groups
   plan       Show how a new pool would be laid out
+  pool       Create a pool: ${SHORT_NAME} pool create
   version    Print the version
   help       Show this message, or help for a command: ${SHORT_NAME} help plan`;
 
 const COMMANDS: ReadonlyMap<string, { usage: string; handler: typeof statusCommand }> = new Map([
   ['status', { usage: STATUS_USAGE, handler: statusCommand }],
   ['plan', { usage: PLAN_USAGE, handler: planCommand }],
+  ['pool', { usage: POOL_USAGE, handler: poolCommand }],
 ]);
 
 function isParseArgsError(error: unknown): error is TypeError {

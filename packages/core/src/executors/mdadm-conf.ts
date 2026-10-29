@@ -28,7 +28,7 @@ function arrayLine(definition: MdArrayDefinition): string {
 
 export interface MdadmConfOptions {
   /** Where the per-pool files live. The default is the system directory. */
-  readonly confDir?: string;
+  readonly confDir?: string | undefined;
 }
 
 /** Path of a pool's config file. */

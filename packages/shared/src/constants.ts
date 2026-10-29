@@ -21,6 +21,9 @@ export const DEFAULT_WEB_PORT = 7700;
 /** Volumes are mounted under this directory by default. */
 export const DEFAULT_MOUNT_ROOT = '/mnt/ohr';
 
+/** Where the root daemon keeps its database (decision 0006). */
+export const DEFAULT_DATABASE_PATH = '/var/lib/ohr/ohr.db';
+
 /** Unix socket the root daemon listens on. */
 export const CORE_SOCKET_PATH = '/run/ohr/core.sock';
 
