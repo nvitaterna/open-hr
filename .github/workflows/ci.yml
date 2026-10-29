@@ -33,3 +33,18 @@ jobs:
           node packages/cli/dist/bin.js version
           node packages/cli/dist/bin.js plan --redundancy shr1 --sizes 4TB,8TB,8TB
           node packages/cli/dist/bin.js status
+
+  integration:
+    name: Integration tests on loop devices
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: sudo apt-get install --yes gdisk
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: sudo env "PATH=$PATH" pnpm --filter @ohr/core test:integration

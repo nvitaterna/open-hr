@@ -113,3 +113,28 @@ export function describeFailure(command: string, result: CommandResult): string 
       throw new Error(`Unhandled command result: ${String(result satisfies never)}`);
   }
 }
+
+/** Raised by runChecked when a command does not exit cleanly. */
+export class CommandError extends Error {
+  override readonly name = 'CommandError';
+  readonly result: CommandResult;
+
+  constructor(command: string, result: CommandResult) {
+    super(describeFailure(command, result));
+    this.result = result;
+  }
+}
+
+/** Runs a command that must succeed, returning its stdout. Throws CommandError otherwise. */
+export async function runChecked(
+  run: CommandRunner,
+  command: string,
+  args: readonly string[],
+  options?: RunOptions,
+): Promise<string> {
+  const result = await run(command, args, options);
+  if (result.kind !== 'exited' || result.exitCode !== 0) {
+    throw new CommandError(command, result);
+  }
+  return result.stdout;
+}
