@@ -12,6 +12,8 @@ import { PoolCard } from '../components/pool-card.tsx';
 import { Panel, Section } from '../components/section.tsx';
 import { ROLE_LABELS } from '../labels.ts';
 
+const LINK = 'text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400';
+
 /** How many finished jobs the dashboard shows next to the running ones. */
 const RECENT_FINISHED = 5;
 
@@ -27,9 +29,11 @@ function Pools(): ReactElement {
     return (
       <Panel>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          No pools yet. For now, create one with{' '}
-          <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">ohr pool create</code> on the
-          server.
+          No pools yet.{' '}
+          <Link to="/pools/new" className={LINK}>
+            Create a pool
+          </Link>{' '}
+          from the drives in this machine.
         </p>
       </Panel>
     );
@@ -122,7 +126,14 @@ export function DashboardPage(): ReactElement {
     <div className="space-y-8">
       <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
       <SystemWarnings />
-      <Section title="Pools">
+      <Section
+        title="Pools"
+        aside={
+          <Link to="/pools/new" className={LINK}>
+            Create pool
+          </Link>
+        }
+      >
         <Pools />
       </Section>
       <Section title="Jobs">
@@ -131,10 +142,7 @@ export function DashboardPage(): ReactElement {
       <Section
         title="Drives"
         aside={
-          <Link
-            to="/drives"
-            className="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-          >
+          <Link to="/drives" className={LINK}>
             All drives
           </Link>
         }

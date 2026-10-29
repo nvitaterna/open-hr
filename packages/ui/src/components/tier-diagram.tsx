@@ -1,9 +1,8 @@
 import { type ReactElement, useId } from 'react';
 
-import type { PoolView } from '@ohr/shared/pool-view';
 import { formatSize } from '@ohr/shared/sizes';
 
-import { type DiagramCell, type DiagramColumn, layoutTiers } from '../tier-layout.ts';
+import type { DiagramCell, DiagramColumn, TierDiagram as TierDiagramData } from '../tier-layout.ts';
 
 const COLUMN_WIDTH = 96;
 const GAP = 16;
@@ -159,13 +158,19 @@ function Column({ column, index, unit }: ColumnProps): ReactElement {
   );
 }
 
+interface TierDiagramProps {
+  /** From layoutTiers for a pool, or layoutPlan for a preview. */
+  readonly diagram: TierDiagramData;
+  /** What the drawing shows, for screen readers. */
+  readonly title: string;
+}
+
 /**
- * The pool's drives as columns and its tiers as bands (plan section 5.6).
- * Wider than a phone with many drives, so it scrolls sideways there.
+ * Drives as columns and tiers as bands (plan section 5.6). Wider than a
+ * phone with many drives, so it scrolls sideways there.
  */
-export function TierDiagram({ pool }: { readonly pool: PoolView }): ReactElement {
+export function TierDiagram({ diagram, title }: TierDiagramProps): ReactElement {
   const titleId = useId();
-  const diagram = layoutTiers(pool);
   const width = GAP + diagram.columns.length * (COLUMN_WIDTH + GAP);
   const height = TOP + PLOT_HEIGHT + LABEL_HEIGHT;
   const unit = PLOT_HEIGHT / diagram.scale;
@@ -178,9 +183,7 @@ export function TierDiagram({ pool }: { readonly pool: PoolView }): ReactElement
         height={height}
         viewBox={`0 0 ${width} ${height}`}
       >
-        <title id={titleId}>
-          {`Pool ${pool.id}: ${diagram.columns.length} drives, ${diagram.tiers.length} tiers`}
-        </title>
+        <title id={titleId}>{title}</title>
         {diagram.columns.map((column, index) => (
           <Column key={column.drive} column={column} index={index} unit={unit} />
         ))}

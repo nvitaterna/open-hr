@@ -9,6 +9,8 @@ import { Route, Routes } from 'react-router';
 import { useMe, useSetupStatus } from './api/queries.ts';
 import { Layout } from './components/layout.tsx';
 import { ErrorMessage, Loading } from './components/page-states.tsx';
+import { CreatePoolPage } from './pages/create-pool-page.tsx';
+import { CreateVolumePage } from './pages/create-volume-page.tsx';
 import { DashboardPage } from './pages/dashboard-page.tsx';
 import { DrivesPage } from './pages/drives-page.tsx';
 import { JobPage } from './pages/job-page.tsx';
@@ -65,7 +67,9 @@ export function App(): ReactElement {
       <Route element={<Layout username={me.data.username} />}>
         <Route index={true} element={<DashboardPage />} />
         <Route path="drives" element={<DrivesPage />} />
+        <Route path="pools/new" element={<CreatePoolPage />} />
         <Route path="pools/:id" element={<PoolPage />} />
+        <Route path="pools/:id/volumes/new" element={<CreateVolumePage />} />
         <Route path="volumes" element={<VolumesPage />} />
         <Route path="jobs" element={<JobsPage />} />
         <Route path="jobs/:id" element={<JobPage />} />

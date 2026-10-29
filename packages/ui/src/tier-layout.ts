@@ -1,12 +1,14 @@
 /**
  * Where each tier's partitions sit on each drive, for the pool page's
  * diagram (plan section 5.6): drives as columns, tiers as bands stacked from
- * the bottom. A tier's slice is its array size over its data members, so the
- * bands are to scale. When an array is not running its size is unknown, and
- * every slice is drawn the same height instead.
+ * the bottom. For a pool, a tier's slice is its array size over its data
+ * members, so the bands are to scale. When an array is not running its size
+ * is unknown, and every slice is drawn the same height instead. For a plan,
+ * the planner's partitions give the exact slices.
  */
 
 import { dataMembers, type RaidLevel } from '@ohr/shared/array-capacity';
+import type { Layout } from '@ohr/shared/planner';
 import type { MemberState, PoolView, TierHealth } from '@ohr/shared/pool-view';
 
 const RAID_LEVELS: ReadonlySet<string> = new Set(['raid1', 'raid5', 'raid6']);
@@ -110,5 +112,32 @@ export function layoutTiers(pool: PoolView): TierDiagram {
     tiers: tiers.map((tier) => ({ tier: tier.tier, level: tier.level, health: tier.health })),
     scale: Math.max(NOMINAL_SLICE, ...stacks),
     toScale,
+  };
+}
+
+/** Lays out a planned pool, from a preview, the same way. */
+export function layoutPlan(layout: Layout): TierDiagram {
+  const columns = layout.drives.map((drive): DiagramColumn => {
+    const cells: DiagramCell[] = [];
+    let offset = 0;
+    for (const partition of drive.partitions) {
+      if (partition.tier !== null) {
+        cells.push({
+          tier: partition.tier,
+          state: 'active',
+          partition: `${drive.id} partition ${partition.number}`,
+          offset,
+          height: partition.sizeBytes,
+        });
+        offset += partition.sizeBytes;
+      }
+    }
+    return { drive: drive.id, height: drive.sizeBytes, sizeBytes: drive.sizeBytes, cells };
+  });
+  return {
+    columns,
+    tiers: layout.tiers.map((tier) => ({ tier: tier.tier, level: tier.level, health: 'healthy' })),
+    scale: Math.max(NOMINAL_SLICE, ...layout.drives.map((drive) => drive.sizeBytes)),
+    toScale: true,
   };
 }

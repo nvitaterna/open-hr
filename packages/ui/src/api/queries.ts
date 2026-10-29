@@ -13,7 +13,16 @@ import {
 } from '@tanstack/react-query';
 
 import type { Result } from '@ohr/rpc/contract';
-import type { LoginRequest, Me, SetupRequest, SetupStatus } from '@ohr/shared/web-api';
+import type { PoolCreateRequest } from '@ohr/shared/pool-create-request';
+import type {
+  LoginRequest,
+  Me,
+  PoolSubmission,
+  SetupRequest,
+  SetupStatus,
+  VolumePreviewRequest,
+  VolumeSubmission,
+} from '@ohr/shared/web-api';
 
 import { ApiRequestError } from './api-request-error.ts';
 import { apiGet, apiPost } from './http.ts';
@@ -98,6 +107,53 @@ export function useRetryJob(): UseMutationResult<Result<'jobs.retry'>, Error, st
   });
 }
 
+/** Plans a pool. Refused with ApiRequestError 422 and core's reasons. */
+export function usePreviewPool(): UseMutationResult<
+  Result<'pools.previewCreate'>,
+  Error,
+  PoolCreateRequest
+> {
+  return useMutation({
+    mutationFn: (request: PoolCreateRequest) =>
+      apiPost<Result<'pools.previewCreate'>>('/pools/preview', request),
+  });
+}
+
+/** Starts the pool-create job from a preview. */
+export function useCreatePool(): UseMutationResult<Result<'jobs.submit'>, Error, PoolSubmission> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (submission: PoolSubmission) =>
+      apiPost<Result<'jobs.submit'>>('/pools', submission),
+    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.jobs }),
+  });
+}
+
+/** Plans a volume on `poolId`. */
+export function usePreviewVolume(
+  poolId: string,
+): UseMutationResult<Result<'volumes.previewCreate'>, Error, VolumePreviewRequest> {
+  return useMutation({
+    mutationFn: (request: VolumePreviewRequest) =>
+      apiPost<Result<'volumes.previewCreate'>>(
+        `/pools/${encodeURIComponent(poolId)}/volumes/preview`,
+        request,
+      ),
+  });
+}
+
+/** Starts the volume-create job from a preview. */
+export function useCreateVolume(
+  poolId: string,
+): UseMutationResult<Result<'jobs.submit'>, Error, VolumeSubmission> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (submission: VolumeSubmission) =>
+      apiPost<Result<'jobs.submit'>>(`/pools/${encodeURIComponent(poolId)}/volumes`, submission),
+    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.jobs }),
+  });
+}
+
 export function useJobs(): UseQueryResult<Result<'jobs.list'>> {
   return useQuery({ queryKey: queryKeys.jobs, queryFn: () => apiGet('/jobs') });
 }
@@ -145,4 +201,9 @@ export function isSignedOut(error: unknown): boolean {
 /** True for an error that means the thing asked for does not exist. */
 export function isNotFound(error: unknown): boolean {
   return error instanceof ApiRequestError && error.status === NOT_FOUND;
+}
+
+/** True when core refused a submission because the machine changed since the preview. */
+export function isStateChanged(error: unknown): boolean {
+  return error instanceof ApiRequestError && error.code === 'state-changed';
 }
