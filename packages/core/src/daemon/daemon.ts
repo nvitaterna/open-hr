@@ -166,13 +166,26 @@ export async function startDaemon(options: DaemonOptions): Promise<Daemon> {
     run: options.run,
     definitionFor: (job) => jobDefinition(job, jobDeps),
     onEvent: (event) => {
-      if (server !== null) {
-        publishJobEvent(server, event);
+      const publish = (): void => {
+        if (server !== null) {
+          publishJobEvent(server, event);
+        }
+      };
+      if (!changesMachine(event)) {
+        publish();
+        return;
       }
-      if (changesMachine(event)) {
-        state.refresh().catch((error: unknown) => {
+      const refreshed = state.refresh().then(
+        () => undefined,
+        (error: unknown) => {
           options.log(`Reading the system state failed: ${errorText(error)}`);
-        });
+        },
+      );
+      if (event.kind === 'job') {
+        // Clients read the state when a job finishes, so announce it only once the cache has caught up.
+        refreshed.then(publish, publish);
+      } else {
+        publish();
       }
     },
     log: options.log,

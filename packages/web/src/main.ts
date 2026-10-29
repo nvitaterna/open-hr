@@ -9,8 +9,9 @@ import { join } from 'node:path';
 import process from 'node:process';
 import { parseArgs } from 'node:util';
 
-import { DEFAULT_WEB_PORT } from '@ohr/shared/constants';
+import { CORE_SOCKET_PATH, DEFAULT_WEB_PORT } from '@ohr/shared/constants';
 
+import { CoreLink } from './core-link.ts';
 import { LoginLimiter } from './login-limiter.ts';
 import { buildWebServer } from './server.ts';
 import { writeSetupToken } from './setup-token.ts';
@@ -37,6 +38,7 @@ Options:
   --host <address>    Address to listen on (default ${ALL_ADDRESSES})
   --data <dir>        Web data: database and setup token (default ${DEFAULT_DATA_DIR})
   --tls <dir>         Directory with cert.pem and key.pem (default ${DEFAULT_TLS_DIR})
+  --socket <path>     ohr-core's socket (default ${CORE_SOCKET_PATH})
   --insecure-http     Plain HTTP on ${LOCALHOST}, for development only
   --help              Show this message`;
 
@@ -57,6 +59,7 @@ function options(args: readonly string[]): {
     host: string;
     data: string;
     tls: string;
+    socket: string;
     'insecure-http': boolean;
     help: boolean;
   };
@@ -69,6 +72,7 @@ function options(args: readonly string[]): {
       host: { type: 'string', default: ALL_ADDRESSES },
       data: { type: 'string', default: DEFAULT_DATA_DIR },
       tls: { type: 'string', default: DEFAULT_TLS_DIR },
+      socket: { type: 'string', default: CORE_SOCKET_PATH },
       'insecure-http': { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
     },
@@ -107,9 +111,11 @@ async function serve(values: ReturnType<typeof options>['values']): Promise<numb
     };
   }
   const store = WebStore.open(join(values.data, DATABASE_FILE));
+  const core = new CoreLink({ socketPath: values.socket, log });
   const app = await buildWebServer({
     store,
     limiter: new LoginLimiter(),
+    core,
     setupTokenPath: join(values.data, TOKEN_FILE),
     secureCookies: !insecure,
     tls,
@@ -118,7 +124,7 @@ async function serve(values: ReturnType<typeof options>['values']): Promise<numb
   await app.listen({ port, host });
   const stop = (signal: string): void => {
     log(`Received ${signal}, stopping.`);
-    app.close().then(
+    Promise.all([app.close(), core.close()]).then(
       () => {
         store.close();
         process.exit(0);

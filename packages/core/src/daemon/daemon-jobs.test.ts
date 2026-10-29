@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setTimeout } from 'node:timers/promises';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -36,7 +37,13 @@ let udevLine: (line: string) => void;
 /** While set, every command except the state reads waits for it, so a job stays running. */
 let hold: Promise<void> | null;
 let release: () => void;
+/** How many lsblk calls have returned, and how many had when a job command last returned. */
+let reads: number;
+let readsAfterJobCommand: number;
+/** Makes each lsblk call this much slower, as on a real machine. */
+let readDelayMs: number;
 
+const SLOW_READ_MS = 30;
 const STATE_READS = new Set(['lsblk', 'findmnt', 'pvs', 'vgs', 'lvs', 'mdadm']);
 
 function holdJobs(): void {
@@ -60,6 +67,9 @@ beforeEach(async () => {
   udevLine = () => undefined;
   hold = null;
   release = () => undefined;
+  reads = 0;
+  readsAfterJobCommand = 0;
+  readDelayMs = 0;
   const fake = fakeRunner(answers).run;
   daemon = await startDaemon({
     socketPath,
@@ -70,7 +80,15 @@ beforeEach(async () => {
       if (hold !== null && !STATE_READS.has(command)) {
         await hold;
       }
-      return fake(command, args, options);
+      const result = await fake(command, args, options);
+      if (command === 'lsblk') {
+        await setTimeout(readDelayMs);
+        reads += 1;
+      }
+      if (!STATE_READS.has(command)) {
+        readsAfterJobCommand = reads;
+      }
+      return result;
     },
     readFile: exampleShr1Files(),
     labelIo: exampleShr1Labels(),
@@ -141,6 +159,24 @@ describe('jobs.submit', () => {
       { jobId: job.id, status: 'running', error: null },
       { jobId: job.id, status: 'failed', error: finished.error },
     ]);
+  });
+
+  it('announces a finished job only once the state has been read again', async () => {
+    const preview = await rpc.call('pools.previewCreate', REQUEST);
+    readDelayMs = SLOW_READ_MS;
+    let readsWhenAnnounced = -1;
+    await rpc.subscribe((event) => {
+      if (event.event === 'job.status' && event.data.status === 'failed') {
+        readsWhenAnnounced = reads;
+      }
+    });
+    await rpc.call('jobs.submit', {
+      kind: 'pool-create',
+      input: preview.input,
+      stateHash: preview.stateHash,
+    });
+    await daemon.jobs.idle();
+    await expect.poll(() => readsWhenAnnounced).toBeGreaterThan(readsAfterJobCommand);
   });
 
   it('refuses a submission made from an older state', async () => {
