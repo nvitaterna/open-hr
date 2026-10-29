@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 
 import type { PoolView } from '@ohr/shared/pool-view';
 import { formatSize } from '@ohr/shared/sizes';
@@ -15,6 +15,7 @@ import { TierDiagram } from '../components/tier-diagram.tsx';
 import { TierTable } from '../components/tier-table.tsx';
 import { VolumeTable } from '../components/volume-table.tsx';
 import { REDUNDANCY_LABELS } from '../labels.ts';
+import { layoutTiers } from '../tier-layout.ts';
 
 const DRIVE_HEADINGS = ['Drive', 'Model', 'Serial', 'Size', 'Label'];
 
@@ -69,11 +70,24 @@ function PoolDetail({ pool }: { readonly pool: PoolView }): ReactElement {
       <Summary pool={pool} />
       <Section title="Layout">
         <Panel>
-          <TierDiagram pool={pool} />
+          <TierDiagram
+            diagram={layoutTiers(pool)}
+            title={`Pool ${pool.id}: ${pool.drives.length} drives, ${pool.tiers.length} tiers`}
+          />
         </Panel>
         <TierTable tiers={pool.tiers} />
       </Section>
-      <Section title="Volumes">
+      <Section
+        title="Volumes"
+        aside={
+          <Link
+            to={`/pools/${encodeURIComponent(pool.id)}/volumes/new`}
+            className="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+          >
+            Create volume
+          </Link>
+        }
+      >
         <VolumeTable
           items={pool.volumes.map((volume) => ({ poolId: pool.id, volume }))}
           showPool={false}
