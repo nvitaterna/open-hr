@@ -203,6 +203,8 @@ Planner rules:
   same partition number. Partition 1 is reserved for a 16 MiB Open HR label
   partition that holds a JSON descriptor (pool id, drive id, layout version).
   This makes drives self-describing even if md and LVM metadata is damaged.
+  Partitions are named `ohr-<poolId>-t<tier>` and `ohr-<poolId>-label`
+  (decision 0004).
 - Drives whose usable sizes differ by less than 1 GiB share a tier, so nearly
   equal drives from different vendors do not create tiny arrays (decision 0003).
 - md arrays use metadata 1.2, an internal write-intent bitmap (fast recovery
@@ -799,11 +801,11 @@ runs, and what a user would run by hand to recreate it.
 ```
 # partition: p1 label (16 MiB), p2 tier 1 (4 TB minus reserve), p3 tier 2 (4 TB) on the 8 TB drives
 sgdisk -Z /dev/sda
-sgdisk -n 1:0:+16M  -t 1:8300 -c 1:ohr:label /dev/sda
-sgdisk -n 2:0:+3999G -t 2:FD00 -c 2:ohr:p1:t1 /dev/sda
+sgdisk -n 1:0:+16M  -t 1:8300 -c 1:ohr-p1-label /dev/sda
+sgdisk -n 2:0:+3999G -t 2:FD00 -c 2:ohr-p1-t1 /dev/sda
 # same for sdb and sdc, plus:
-sgdisk -n 3:0:+4000G -t 3:FD00 -c 3:ohr:p1:t2 /dev/sdb
-sgdisk -n 3:0:+4000G -t 3:FD00 -c 3:ohr:p1:t2 /dev/sdc
+sgdisk -n 3:0:+4000G -t 3:FD00 -c 3:ohr-p1-t2 /dev/sdb
+sgdisk -n 3:0:+4000G -t 3:FD00 -c 3:ohr-p1-t2 /dev/sdc
 
 # arrays
 mdadm --create /dev/md/ohr_p1_t1 --metadata=1.2 --bitmap=internal --chunk=512 \

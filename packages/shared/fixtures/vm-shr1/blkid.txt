@@ -22,7 +22,7 @@ UUID=b8f68109-6170-bca0-e65e-e88604bb64d7
 UUID_SUB=65d58e1a-ae38-6894-53b5-636ce1cfb680
 LABEL=any:ohr_dev_t4
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t4
+PARTLABEL=ohr-dev-t4
 PARTUUID=d0253304-ac20-40ea-9692-6105ee9057cc
 
 DEVNAME=/dev/sdf3
@@ -30,7 +30,7 @@ UUID=f5126f62-e440-6841-d953-9c70fd003a2e
 UUID_SUB=3091ce9a-b33e-1324-8180-e8374b25f33d
 LABEL=any:ohr_dev_t2
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t2
+PARTLABEL=ohr-dev-t2
 PARTUUID=8bc265f2-b8d2-4f6f-82b8-ea142545bdfa
 
 DEVNAME=/dev/sdf4
@@ -38,7 +38,7 @@ UUID=2b19f6c2-6d03-bfce-2dbd-734966944f2e
 UUID_SUB=93a7bc3d-bbac-3f47-90f8-9fe2eb3dd8fc
 LABEL=any:ohr_dev_t3
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t3
+PARTLABEL=ohr-dev-t3
 PARTUUID=80d8e441-26b1-4480-b02f-07cdc841f6e5
 
 DEVNAME=/dev/sdf2
@@ -46,7 +46,7 @@ UUID=140b5ec3-72c1-c4ad-6daf-496c2a364b9a
 UUID_SUB=3b5ae6b7-b47e-02a7-e200-69b1900a31b8
 LABEL=any:ohr_dev_t1
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t1
+PARTLABEL=ohr-dev-t1
 PARTUUID=c0891077-7ece-4a01-8e87-cdc7c53aa450
 
 DEVNAME=/dev/sdd2
@@ -54,7 +54,7 @@ UUID=140b5ec3-72c1-c4ad-6daf-496c2a364b9a
 UUID_SUB=acd1ebd6-e4a1-c909-5091-f3bc588e59c2
 LABEL=any:ohr_dev_t1
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t1
+PARTLABEL=ohr-dev-t1
 PARTUUID=8fa4a700-9c1a-443f-829a-2867cd736590
 
 DEVNAME=/dev/sdd3
@@ -62,7 +62,7 @@ UUID=f5126f62-e440-6841-d953-9c70fd003a2e
 UUID_SUB=bd49c8a8-607a-ebec-d622-03125bfb9289
 LABEL=any:ohr_dev_t2
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t2
+PARTLABEL=ohr-dev-t2
 PARTUUID=5b5d7fd1-855e-49f8-87f1-c08d8fc65b15
 
 DEVNAME=/dev/md127
@@ -78,7 +78,7 @@ UUID=b8f68109-6170-bca0-e65e-e88604bb64d7
 UUID_SUB=7972cbd2-70e9-3709-325e-4f53b3a15588
 LABEL=any:ohr_dev_t4
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t4
+PARTLABEL=ohr-dev-t4
 PARTUUID=09aeeb0c-0603-4375-a5fd-727c2547bb49
 
 DEVNAME=/dev/sdg3
@@ -86,7 +86,7 @@ UUID=f5126f62-e440-6841-d953-9c70fd003a2e
 UUID_SUB=6402dd7d-a5f2-cf31-6e5e-e55979dec126
 LABEL=any:ohr_dev_t2
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t2
+PARTLABEL=ohr-dev-t2
 PARTUUID=8ac7fa11-23ba-47eb-953d-89a7a80a44bd
 
 DEVNAME=/dev/sdg4
@@ -94,7 +94,7 @@ UUID=2b19f6c2-6d03-bfce-2dbd-734966944f2e
 UUID_SUB=61713d3a-4c2c-0c77-ca81-b9ddad77a2dd
 LABEL=any:ohr_dev_t3
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t3
+PARTLABEL=ohr-dev-t3
 PARTUUID=a9ecffce-e810-40ab-aab7-d30ae17907e5
 
 DEVNAME=/dev/sdg2
@@ -102,7 +102,7 @@ UUID=140b5ec3-72c1-c4ad-6daf-496c2a364b9a
 UUID_SUB=5c1f6c84-9521-8ad3-ca31-19c905b9e579
 LABEL=any:ohr_dev_t1
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t1
+PARTLABEL=ohr-dev-t1
 PARTUUID=9b1be807-e750-49b7-a75b-a085d7dbc5a1
 
 DEVNAME=/dev/mapper/ohr--dev-data
@@ -117,7 +117,7 @@ UUID=140b5ec3-72c1-c4ad-6daf-496c2a364b9a
 UUID_SUB=4e279b12-7e69-c126-b777-a04e28f34e9c
 LABEL=any:ohr_dev_t1
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t1
+PARTLABEL=ohr-dev-t1
 PARTUUID=3ed89685-37d2-41e8-9b86-a6266dbb1c5a
 
 DEVNAME=/dev/sde3
@@ -125,7 +125,7 @@ UUID=f5126f62-e440-6841-d953-9c70fd003a2e
 UUID_SUB=af33b02c-569a-24ba-da9a-e347800b9467
 LABEL=any:ohr_dev_t2
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t2
+PARTLABEL=ohr-dev-t2
 PARTUUID=b77bb1ce-8354-4709-9a73-fffd1a7f5467
 
 DEVNAME=/dev/sde4
@@ -133,7 +133,7 @@ UUID=2b19f6c2-6d03-bfce-2dbd-734966944f2e
 UUID_SUB=15302dbf-dee8-367d-4bfb-1e17bb482ea8
 LABEL=any:ohr_dev_t3
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t3
+PARTLABEL=ohr-dev-t3
 PARTUUID=4795c74a-efb3-4f84-8d20-2651d6b87226
 
 DEVNAME=/dev/sdc2
@@ -141,7 +141,7 @@ UUID=140b5ec3-72c1-c4ad-6daf-496c2a364b9a
 UUID_SUB=6cce176c-76c7-ab1e-88eb-b9229395b149
 LABEL=any:ohr_dev_t1
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t1
+PARTLABEL=ohr-dev-t1
 PARTUUID=ae30676a-9291-4c90-ad3d-db6a9dfa14eb
 
 DEVNAME=/dev/sdc3
@@ -149,7 +149,7 @@ UUID=f5126f62-e440-6841-d953-9c70fd003a2e
 UUID_SUB=0ff21bd7-b7a9-7db9-e754-90cd6bee296e
 LABEL=any:ohr_dev_t2
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t2
+PARTLABEL=ohr-dev-t2
 PARTUUID=d2479f2b-5487-48f9-a5d9-94d7e8c2f2b8
 
 DEVNAME=/dev/md126
@@ -161,7 +161,7 @@ UUID=140b5ec3-72c1-c4ad-6daf-496c2a364b9a
 UUID_SUB=e9d5f3e1-194f-603c-f394-23cf45617ee1
 LABEL=any:ohr_dev_t1
 TYPE=linux_raid_member
-PARTLABEL=ohr:dev:t1
+PARTLABEL=ohr-dev-t1
 PARTUUID=c292d8c6-886a-4024-8675-206bc655b72b
 
 DEVNAME=/dev/md124
@@ -169,28 +169,28 @@ UUID=cpARvO-MFqB-ksWy-r4uj-2B1q-v0fx-m7c35K
 TYPE=LVM2_member
 
 DEVNAME=/dev/sdf1
-PARTLABEL=ohr:dev:label
+PARTLABEL=ohr-dev-label
 PARTUUID=c712a139-ca10-4634-9241-19f651b28ed9
 
 DEVNAME=/dev/sdd1
-PARTLABEL=ohr:dev:label
+PARTLABEL=ohr-dev-label
 PARTUUID=a0e1e7ef-0e45-49fe-b53e-da1e10369b77
 
 DEVNAME=/dev/sdb14
 PARTUUID=76d4c84c-a620-4f6c-937d-32bd65e03413
 
 DEVNAME=/dev/sdg1
-PARTLABEL=ohr:dev:label
+PARTLABEL=ohr-dev-label
 PARTUUID=1d2fc99e-b467-40c5-b6fb-b37635d1a032
 
 DEVNAME=/dev/sde1
-PARTLABEL=ohr:dev:label
+PARTLABEL=ohr-dev-label
 PARTUUID=90cfaef2-0374-4c25-9048-fdf36028f592
 
 DEVNAME=/dev/sdc1
-PARTLABEL=ohr:dev:label
+PARTLABEL=ohr-dev-label
 PARTUUID=b03acca3-22b4-4c41-9c70-9faacf19aad0
 
 DEVNAME=/dev/sda1
-PARTLABEL=ohr:dev:label
+PARTLABEL=ohr-dev-label
 PARTUUID=2888a75f-0a1e-4239-889a-d1b8afecb21d

@@ -1,6 +1,6 @@
 # 0003. Layout planner rules and system inspection
 
-- Status: Accepted
+- Status: Accepted. Partition names superseded by [0004](0004-on-disk-format.md)
 - Date: 2026-10-28
 
 ## Context

@@ -20,11 +20,11 @@ describe('vm-shr1: real SHR-1 pool', () => {
   it('lsblk shows every tier partition with its Open HR name', () => {
     const devices = flattenBlockDevices(parseLsblk(readFixture('vm-shr1/lsblk.json')));
     const labels = devices
-      .filter((device) => device.partLabel?.startsWith('ohr:dev:') === true)
+      .filter((device) => device.partLabel?.startsWith('ohr-dev-') === true)
       .map((device) => device.partLabel);
     // 6 label partitions and 6 + 5 + 3 + 2 tier partitions.
     expect(labels).toHaveLength(22);
-    expect(labels.filter((label) => label === 'ohr:dev:label')).toHaveLength(6);
+    expect(labels.filter((label) => label === 'ohr-dev-label')).toHaveLength(6);
   });
 
   it('mdstat shows four healthy arrays once the initial sync is done', () => {
