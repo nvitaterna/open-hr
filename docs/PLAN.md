@@ -380,7 +380,7 @@ open-hr/
 | Validation       | zod                                                                       | one schema per API shape, shared between core, web, ui, cli        |
 | HTTP server      | Fastify                                                                   | fast, typed, first-class schema validation, SSE is easy            |
 | Process spawning | Node's `execFile` with argument arrays, never a shell, fixed environment  | removes injection risk entirely; see decision 0003                 |
-| Database         | SQLite via better-sqlite3                                                 | zero ops, single file, transactional                               |
+| Database         | SQLite via Node's built-in `node:sqlite` (decision 0006)                  | zero ops, single file, transactional, no native module             |
 | UI               | React, Vite, Tailwind, TanStack Query                                     | standard, fast to build, easy for contributors                     |
 | Testing          | Vitest, fast-check for property tests, Playwright for e2e                 |                                                                    |
 | Lint and format  | Biome, `all` preset, warnings fail, sorted import groups, no barrel files | one strict tool instead of ESLint plus Prettier; see decision 0002 |
