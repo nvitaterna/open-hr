@@ -23,19 +23,11 @@ import {
 import { assertVolumeName } from '@ohr/shared/volume-name';
 
 import { type CommandRunner, runChecked } from '../command-runner.ts';
+import { singleRow } from './single-row.ts';
 
 const BYTES_PER_MIB = 1_048_576;
 /** Wiping and zeroing a new volume's first blocks can be slow on sleeping drives. */
 const LVM_TIMEOUT_MS = 120_000;
-
-/** The one row a report about a single object must contain. */
-function single<T>(rows: readonly T[], what: string): T {
-  const [row] = rows;
-  if (row === undefined || rows.length !== 1) {
-    throw new Error(`Expected one ${what} in the LVM report, got ${rows.length}`);
-  }
-  return row;
-}
 
 function sizeArgs(size: VolumeSize): string[] {
   if (size.kind === 'all-free') {
@@ -119,7 +111,7 @@ export async function createPhysicalVolume(
   await runChecked(run, 'wipefs', ['--all', '--quiet', device]);
   await runChecked(run, 'pvcreate', [device], { timeoutMs: LVM_TIMEOUT_MS });
   const report = await runChecked(run, 'pvs', [...lvmReportArgs(PV_FIELDS), device]);
-  return single(parsePvs(report), 'physical volume');
+  return singleRow(parsePvs(report), 'physical volume');
 }
 
 export async function createVolumeGroup(
@@ -129,7 +121,7 @@ export async function createVolumeGroup(
   await runChecked(run, 'vgcreate', vgcreateArgs(request), { timeoutMs: LVM_TIMEOUT_MS });
   const name = volumeGroupName(request.poolId);
   const report = await runChecked(run, 'vgs', [...lvmReportArgs(VG_FIELDS), name]);
-  return single(parseVgs(report), 'volume group');
+  return singleRow(parseVgs(report), 'volume group');
 }
 
 /** Creates the volume, waits for udev to create its device link, and reports what LVM sees. */
@@ -141,5 +133,5 @@ export async function createLogicalVolume(
   await runChecked(run, 'udevadm', ['settle']);
   const target = `${volumeGroupName(request.poolId)}/${request.name}`;
   const report = await runChecked(run, 'lvs', [...lvmReportArgs(LV_FIELDS), target]);
-  return single(parseLvs(report), 'logical volume');
+  return singleRow(parseLvs(report), 'logical volume');
 }

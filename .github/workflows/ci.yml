@@ -44,7 +44,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - run: sudo DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends gdisk mdadm lvm2
+      - run: sudo DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends gdisk mdadm lvm2 btrfs-progs
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: sudo env "PATH=$PATH" pnpm --filter @ohr/core test:integration
