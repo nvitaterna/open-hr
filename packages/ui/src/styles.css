@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* Dark mode follows the `dark` class that theme.ts sets on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-900 dark:text-zinc-100;
+  }
+}

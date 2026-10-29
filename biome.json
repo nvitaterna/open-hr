@@ -71,7 +71,23 @@
   },
   "overrides": [
     {
-      "includes": ["packages/core/**", "packages/rpc/**", "packages/web/**", "packages/cli/**"],
+      "includes": ["packages/ui/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noJsxLiterals": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/core/**",
+        "packages/rpc/**",
+        "packages/web/**",
+        "packages/cli/**",
+        "packages/ui/vite.config.ts"
+      ],
       "linter": {
         "rules": {
           "correctness": {
@@ -81,7 +97,7 @@
       }
     },
     {
-      "includes": ["**/*.test.ts"],
+      "includes": ["**/*.test.ts", "**/*.test.tsx"],
       "linter": {
         "rules": {
           "style": {
@@ -113,7 +129,12 @@
       }
     },
     {
-      "includes": ["**/*.test.ts", "**/*-test-helpers.ts"],
+      "includes": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*-test-helpers.ts",
+        "**/*-test-helpers.tsx"
+      ],
       "linter": {
         "rules": {
           "correctness": {
@@ -123,7 +144,7 @@
       }
     },
     {
-      "includes": ["**/vitest*.config.ts"],
+      "includes": ["**/vitest*.config.ts", "**/vite.config.ts"],
       "linter": {
         "rules": {
           "style": {
@@ -142,5 +163,10 @@
         }
       }
     }
-  ]
+  ],
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  }
 }

@@ -1,7 +1,7 @@
 /**
- * ohr-web's HTTP server (plan section 5.5 and decision 0008): the account
- * endpoints, the rules every API request goes through, and the routes over
- * ohr-core from api-routes.ts and event-stream.ts.
+ * ohr-web's HTTP server (plan section 5.5 and decision 0008): the rules
+ * every API request goes through, around the routes from account-routes.ts,
+ * api-routes.ts, event-stream.ts, and the UI files from ui-files.ts.
  *
  * - Until the admin account exists, every API route except setup answers
  *   409 setup-required.
@@ -11,46 +11,24 @@
  * - Every route is private unless it says `config: { public: true }`.
  */
 
-import { createHash, randomBytes } from 'node:crypto';
-
 import fastifyCookie from '@fastify/cookie';
-import fastify, {
-  type FastifyError,
-  type FastifyInstance,
-  type FastifyReply,
-  type FastifyRequest,
-} from 'fastify';
-import { ZodError, type z } from 'zod';
+import fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from 'fastify';
+import { ZodError } from 'zod';
 
-import {
-  type ApiError,
-  loginRequestSchema,
-  type Me,
-  type SetupStatus,
-  setupRequestSchema,
-} from '@ohr/shared/web-api';
+import type { ApiError } from '@ohr/shared/web-api';
 
+import { type Accounts, registerAccountRoutes, SETUP_PATH, sessionUser } from './account-routes.ts';
 import { ApiProblem, HTTP } from './api-problem.ts';
 import { registerApiRoutes } from './api-routes.ts';
 import type { CoreLink } from './core-link.ts';
 import { registerEventStream } from './event-stream.ts';
 import type { LoginLimiter } from './login-limiter.ts';
-import { hashPassword, verifyPassword } from './passwords.ts';
-import { checkSetupToken, removeSetupToken } from './setup-token.ts';
+import { isPageRequest, registerSecurityHeaders, registerUi, sendIndex } from './ui-files.ts';
 import type { WebStore } from './web-store.ts';
 
 const API_PREFIX = '/api/';
-const SETUP_PATH = '/api/v1/setup';
-const SESSION_COOKIE = 'ohr_session';
-const SESSION_BYTES = 32;
-const SESSION_IDLE_MS = 604_800_000;
-const MS_PER_SECOND = 1000;
-const SESSION_IDLE_SECONDS = SESSION_IDLE_MS / MS_PER_SECOND;
 const SAFE_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS']);
 const JSON_TYPE = 'application/json';
-/** Not a real password hash: login verifies against it when there is no admin, to take the same time. */
-const DUMMY_HASH =
-  '$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 declare module 'fastify' {
   interface FastifyContextConfig {
@@ -61,14 +39,6 @@ declare module 'fastify' {
     /** The signed-in user, set for private routes. */
     username: string | null;
   }
-}
-
-function sessionHash(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
-}
-
-function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
-  return schema.parse(body ?? {});
 }
 
 function describeZodError(error: ZodError): string {
@@ -125,55 +95,27 @@ export interface WebServerOptions {
   readonly logger?: boolean;
   /** How often an idle event stream sends a keepalive comment. */
   readonly keepaliveMs?: number;
+  /** The UI build to serve, or null to serve the API only. */
+  readonly uiDir?: string | null;
 }
 
 /** Builds the server without listening, so tests can drive it with inject(). */
 export async function buildWebServer(options: WebServerOptions): Promise<FastifyInstance> {
-  const now = options.now ?? (() => new Date());
-  const { store, limiter } = options;
+  const accounts: Accounts = {
+    store: options.store,
+    limiter: options.limiter,
+    setupTokenPath: options.setupTokenPath,
+    secureCookies: options.secureCookies,
+    now: options.now ?? (() => new Date()),
+  };
   const app = createApp(options);
   await app.register(fastifyCookie);
+  registerSecurityHeaders(app);
+  const uiDir = options.uiDir ?? null;
+  if (uiDir !== null) {
+    await registerUi(app, uiDir);
+  }
   app.decorateRequest('username', null);
-
-  function startSession(reply: FastifyReply): void {
-    const token = randomBytes(SESSION_BYTES).toString('base64url');
-    const at = now();
-    store.deleteIdleSessions(new Date(at.getTime() - SESSION_IDLE_MS).toISOString());
-    store.createSession(sessionHash(token), at.toISOString());
-    reply.setCookie(SESSION_COOKIE, token, {
-      httpOnly: true,
-      secure: options.secureCookies,
-      sameSite: 'strict',
-      path: '/',
-      maxAge: SESSION_IDLE_SECONDS,
-    });
-  }
-
-  function signedIn(request: FastifyRequest): string | null {
-    const token = request.cookies[SESSION_COOKIE];
-    const admin = store.admin();
-    if (token === undefined || admin === null) {
-      return null;
-    }
-    const at = now();
-    const cutoff = new Date(at.getTime() - SESSION_IDLE_MS).toISOString();
-    if (!store.useSession(sessionHash(token), at.toISOString(), cutoff)) {
-      return null;
-    }
-    return admin.username;
-  }
-
-  function throttle(request: FastifyRequest, reply: FastifyReply): void {
-    const waitMs = limiter.retryAfterMs(request.ip);
-    if (waitMs > 0) {
-      reply.header('retry-after', String(Math.ceil(waitMs / MS_PER_SECOND)));
-      throw new ApiProblem(
-        HTTP.tooManyRequests,
-        'too-many-attempts',
-        'Too many failed attempts. Try again later.',
-      );
-    }
-  }
 
   /** The rules every API request goes through. Throws ApiProblem to refuse it. */
   function guard(request: FastifyRequest): void {
@@ -183,11 +125,11 @@ export async function buildWebServer(options: WebServerOptions): Promise<Fastify
     if (isMutation(request)) {
       checkRequestSafety(request);
     }
-    if (!request.url.startsWith(SETUP_PATH) && store.admin() === null) {
+    if (!request.url.startsWith(SETUP_PATH) && accounts.store.admin() === null) {
       throw new ApiProblem(HTTP.conflict, 'setup-required', 'Create the admin account first.');
     }
     if (request.routeOptions.config.public !== true) {
-      request.username = signedIn(request);
+      request.username = sessionUser(accounts, request);
       if (request.username === null) {
         throw new ApiProblem(HTTP.unauthorized, 'not-signed-in', 'Sign in first.');
       }
@@ -227,74 +169,16 @@ export async function buildWebServer(options: WebServerOptions): Promise<Fastify
       .send({ error: 'internal', message: 'Something went wrong in ohr-web. See its log.' });
   });
 
-  app.setNotFoundHandler((_request, reply) =>
-    reply.code(HTTP.notFound).send({ error: 'not-found', message: 'There is nothing here.' }),
-  );
-
-  app.get(
-    SETUP_PATH,
-    { config: { public: true } },
-    (): SetupStatus => ({
-      required: store.admin() === null,
-    }),
-  );
-
-  app.post(SETUP_PATH, { config: { public: true } }, async (request, reply) => {
-    const body = parseBody(setupRequestSchema, request.body);
-    if (store.admin() !== null) {
-      throw new ApiProblem(HTTP.conflict, 'already-set-up', 'The admin account already exists.');
+  app.setNotFoundHandler((request, reply) => {
+    if (uiDir !== null && isPageRequest(request)) {
+      return sendIndex(reply);
     }
-    throttle(request, reply);
-    if (!(await checkSetupToken(options.setupTokenPath, body.token))) {
-      limiter.recordFailure(request.ip);
-      throw new ApiProblem(
-        HTTP.forbidden,
-        'invalid-token',
-        'That is not the setup token. Run "ohr-web setup-token" as root for a new one.',
-      );
-    }
-    const passwordHash = await hashPassword(body.password);
-    if (!store.createAdmin({ username: body.username, passwordHash }, now().toISOString())) {
-      throw new ApiProblem(HTTP.conflict, 'already-set-up', 'The admin account already exists.');
-    }
-    await removeSetupToken(options.setupTokenPath);
-    limiter.reset(request.ip);
-    startSession(reply);
-    const me: Me = { username: body.username };
-    return reply.code(HTTP.created).send(me);
+    return reply
+      .code(HTTP.notFound)
+      .send({ error: 'not-found', message: 'There is nothing here.' });
   });
 
-  app.post('/api/v1/auth/login', { config: { public: true } }, async (request, reply) => {
-    const body = parseBody(loginRequestSchema, request.body);
-    throttle(request, reply);
-    const admin = store.admin();
-    // Always verify, so a wrong username takes as long as a wrong password.
-    const passwordMatches = await verifyPassword(body.password, admin?.passwordHash ?? DUMMY_HASH);
-    if (admin === null || !passwordMatches || body.username !== admin.username) {
-      limiter.recordFailure(request.ip);
-      throw new ApiProblem(
-        HTTP.unauthorized,
-        'invalid-credentials',
-        'The username or password is wrong.',
-      );
-    }
-    limiter.reset(request.ip);
-    startSession(reply);
-    const me: Me = { username: admin.username };
-    return reply.code(HTTP.ok).send(me);
-  });
-
-  app.post('/api/v1/auth/logout', { config: { public: true } }, (request, reply) => {
-    const token = request.cookies[SESSION_COOKIE];
-    if (token !== undefined) {
-      store.deleteSession(sessionHash(token));
-    }
-    reply.clearCookie(SESSION_COOKIE, { path: '/' });
-    return reply.code(HTTP.noContent).send();
-  });
-
-  app.get('/api/v1/auth/me', (request): Me => ({ username: request.username ?? '' }));
-
+  registerAccountRoutes(app, accounts);
   registerApiRoutes(app, options.core);
   registerEventStream(app, options.core, options.keepaliveMs);
 

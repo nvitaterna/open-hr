@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "turbo run build",
+    "dev": "scripts/dev.sh",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
