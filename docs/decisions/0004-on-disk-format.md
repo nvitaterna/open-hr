@@ -59,6 +59,19 @@ the `ohr-dev` VM showed three gaps:
 - A reader rejects a descriptor with an unknown `format` or a
   `layoutVersion` newer than it understands, and never rewrites it.
 
+### md array superblocks
+
+- Arrays are created with metadata 1.2, an internal write-intent bitmap, and
+  a 512 KiB chunk on RAID5 and RAID6. mdadm refuses a chunk size on RAID1, so
+  none is given there.
+- Arrays are created with `--homehost=any`, so the superblock name is
+  `any:ohr_<pool>_t<k>` instead of `<hostname>:ohr_<pool>_t<k>`. mdadm then
+  assembles the array as `/dev/md/ohr_<pool>_t<k>` on any machine, which the
+  recovery promise needs when drives move.
+- Creation passes `--run`. Without it mdadm asks on stdin whether to continue
+  when a member carries an old signature, and the daemon has no stdin. The
+  signature check that protects a user's data runs before the job starts.
+
 ### md and LVM overhead
 
 Measured with mdadm 4.4 and LVM 2.03.31 on loop devices from 1.1 GiB to
