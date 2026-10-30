@@ -16,7 +16,7 @@ export function VolumesPage(): ReactElement {
     const items = pools.data.pools.flatMap((pool) =>
       pool.volumes.map((volume) => ({ poolId: pool.id, volume })),
     );
-    body = <VolumeTable items={items} showPool={true} />;
+    body = <VolumeTable items={items} showPool={true} showGrow={false} />;
   }
   return (
     <div className="space-y-6">

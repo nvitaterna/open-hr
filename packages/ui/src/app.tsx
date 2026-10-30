@@ -13,11 +13,14 @@ import { CreatePoolPage } from './pages/create-pool-page.tsx';
 import { CreateVolumePage } from './pages/create-volume-page.tsx';
 import { DashboardPage } from './pages/dashboard-page.tsx';
 import { DrivesPage } from './pages/drives-page.tsx';
+import { ExpandPoolPage } from './pages/expand-pool-page.tsx';
+import { GrowVolumePage } from './pages/grow-volume-page.tsx';
 import { JobPage } from './pages/job-page.tsx';
 import { JobsPage } from './pages/jobs-page.tsx';
 import { LoginPage } from './pages/login-page.tsx';
 import { NotFoundPage } from './pages/not-found-page.tsx';
 import { PoolPage } from './pages/pool-page.tsx';
+import { ReplaceDrivePage } from './pages/replace-drive-page.tsx';
 import { SetupPage } from './pages/setup-page.tsx';
 import { VolumesPage } from './pages/volumes-page.tsx';
 
@@ -70,6 +73,10 @@ export function App(): ReactElement {
         <Route path="pools/new" element={<CreatePoolPage />} />
         <Route path="pools/:id" element={<PoolPage />} />
         <Route path="pools/:id/volumes/new" element={<CreateVolumePage />} />
+        <Route path="pools/:id/add-drives" element={<ExpandPoolPage addDrives={true} />} />
+        <Route path="pools/:id/expand" element={<ExpandPoolPage addDrives={false} />} />
+        <Route path="pools/:id/replace" element={<ReplaceDrivePage />} />
+        <Route path="pools/:id/volumes/:name/grow" element={<GrowVolumePage />} />
         <Route path="volumes" element={<VolumesPage />} />
         <Route path="jobs" element={<JobsPage />} />
         <Route path="jobs/:id" element={<JobPage />} />

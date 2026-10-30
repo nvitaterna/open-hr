@@ -22,7 +22,32 @@ function usage(volume: VolumeView): string {
   return `${formatSize(volume.usedBytes)} of ${formatSize(total)} (${percent}%)`;
 }
 
-function VolumeRow({ item, showPool }: { item: PoolVolume; showPool: boolean }): ReactElement {
+interface VolumeRowProps {
+  readonly item: PoolVolume;
+  readonly showPool: boolean;
+  readonly showGrow: boolean;
+}
+
+function GrowCell({ item }: { readonly item: PoolVolume }): ReactElement {
+  const { volume, poolId } = item;
+  // Only a mounted filesystem can be grown online.
+  if (volume.mountPoint === null) {
+    return <td className={CELL}>{NONE}</td>;
+  }
+  return (
+    <td className={CELL}>
+      <Link
+        to={`/pools/${encodeURIComponent(poolId)}/volumes/${encodeURIComponent(volume.name)}/grow`}
+        className={LINK}
+        aria-label={`Grow ${volume.name}`}
+      >
+        Grow
+      </Link>
+    </td>
+  );
+}
+
+function VolumeRow({ item, showPool, showGrow }: VolumeRowProps): ReactElement {
   const { volume, poolId } = item;
   let pool: ReactElement | null = null;
   if (showPool) {
@@ -34,6 +59,10 @@ function VolumeRow({ item, showPool }: { item: PoolVolume; showPool: boolean }):
       </td>
     );
   }
+  let grow: ReactElement | null = null;
+  if (showGrow) {
+    grow = <GrowCell item={item} />;
+  }
   return (
     <tr>
       <th scope="row" className={`${CELL} text-left font-medium`}>
@@ -44,6 +73,7 @@ function VolumeRow({ item, showPool }: { item: PoolVolume; showPool: boolean }):
       <td className={`${CELL} text-right tabular-nums`}>{formatSize(volume.sizeBytes)}</td>
       <td className={`${CELL} font-mono text-xs`}>{volume.mountPoint ?? 'not mounted'}</td>
       <td className={`${CELL} tabular-nums`}>{usage(volume)}</td>
+      {grow}
     </tr>
   );
 }
@@ -52,6 +82,8 @@ interface VolumeTableProps {
   readonly items: readonly PoolVolume[];
   /** Adds a column linking each volume's pool. */
   readonly showPool: boolean;
+  /** Adds a column with a Grow link for each mounted volume. */
+  readonly showGrow: boolean;
 }
 
 export interface PoolVolume {
@@ -60,7 +92,7 @@ export interface PoolVolume {
 }
 
 /** Volumes with filesystem, size, mount point, and how full they are. */
-export function VolumeTable({ items, showPool }: VolumeTableProps): ReactElement {
+export function VolumeTable({ items, showPool, showGrow }: VolumeTableProps): ReactElement {
   if (items.length === 0) {
     return <p className="text-sm text-zinc-500 dark:text-zinc-400">No volumes yet.</p>;
   }
@@ -68,10 +100,18 @@ export function VolumeTable({ items, showPool }: VolumeTableProps): ReactElement
   if (showPool) {
     headings.splice(1, 0, 'Pool');
   }
+  if (showGrow) {
+    headings.push('Actions');
+  }
   return (
     <DataTable headings={headings}>
       {items.map((item) => (
-        <VolumeRow key={`${item.poolId}/${item.volume.name}`} item={item} showPool={showPool} />
+        <VolumeRow
+          key={`${item.poolId}/${item.volume.name}`}
+          item={item}
+          showPool={showPool}
+          showGrow={showGrow}
+        />
       ))}
     </DataTable>
   );

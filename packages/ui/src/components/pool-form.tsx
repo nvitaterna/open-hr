@@ -11,54 +11,14 @@ import type { Redundancy } from '@ohr/shared/constants';
 import { isValidPoolId } from '@ohr/shared/naming';
 import type { PoolCreateRequest } from '@ohr/shared/pool-create-request';
 import type { DriveView } from '@ohr/shared/pool-view';
-import { formatSize } from '@ohr/shared/sizes';
 
-import { REDUNDANCY_LABELS, ROLE_LABELS } from '../labels.ts';
+import { REDUNDANCY_LABELS } from '../labels.ts';
 import { PRIMARY_BUTTON } from './buttons.ts';
+import { DriveChoice, WipeField } from './drive-choice.tsx';
 
 const INPUT =
   'mt-1 block w-48 rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900';
 const REDUNDANCIES: readonly Redundancy[] = ['shr1', 'shr2'];
-
-function driveLabel(drive: DriveView): string {
-  let role = ROLE_LABELS[drive.role];
-  if (drive.poolId !== null) {
-    role += ` of pool ${drive.poolId}`;
-  }
-  return `${drive.path} · ${formatSize(drive.sizeBytes)} · ${drive.model ?? 'unknown model'} · ${role}`;
-}
-
-interface DriveChoiceProps {
-  readonly drive: DriveView;
-  readonly checked: boolean;
-  readonly onToggle: (path: string) => void;
-}
-
-function DriveChoice({ drive, checked, onToggle }: DriveChoiceProps): ReactElement {
-  const id = useId();
-  const system = drive.role === 'system';
-  const toggle = useCallback(() => onToggle(drive.path), [onToggle, drive.path]);
-  return (
-    <li className="flex items-start gap-2">
-      <input
-        id={id}
-        type="checkbox"
-        className="mt-0.5 size-4 accent-emerald-700"
-        checked={checked}
-        disabled={system}
-        onChange={toggle}
-      />
-      <label htmlFor={id} className="text-sm">
-        {driveLabel(drive)}
-        {system && (
-          <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-            Holds the operating system, so it cannot join a pool.
-          </span>
-        )}
-      </label>
-    </li>
-  );
-}
 
 interface NameFieldProps {
   readonly poolId: string;
@@ -113,25 +73,6 @@ function RedundancyField({ value, onChange }: RedundancyFieldProps): ReactElemen
         ))}
       </div>
     </fieldset>
-  );
-}
-
-interface WipeFieldProps {
-  readonly checked: boolean;
-  readonly onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-}
-
-function WipeField({ checked, onChange }: WipeFieldProps): ReactElement {
-  return (
-    <label className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="mt-0.5 size-4 accent-red-700"
-      />
-      Some chosen drives hold partitions, a filesystem, or a pool. Erase them.
-    </label>
   );
 }
 
@@ -190,6 +131,7 @@ export function PoolForm({ drives, initial, busy, onPreview }: PoolFormProps): R
               key={drive.path}
               drive={drive}
               checked={selected.includes(drive.path)}
+              kind="checkbox"
               onToggle={onToggle}
             />
           ))}

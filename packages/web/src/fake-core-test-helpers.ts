@@ -6,8 +6,10 @@
 import { RpcError } from '@ohr/rpc/rpc-error';
 import type { Handlers } from '@ohr/rpc/server';
 import type { JobRecord } from '@ohr/shared/jobs';
+import type { PoolExpandInput } from '@ohr/shared/pool-expand-input';
 import type { DriveView, PoolView } from '@ohr/shared/pool-view';
 import type { VolumeCreateInput } from '@ohr/shared/volume-create-input';
+import type { VolumeGrowInput } from '@ohr/shared/volume-grow-input';
 
 const AT = '2026-10-29T12:00:00.000Z';
 
@@ -21,6 +23,8 @@ const EMPTY_SNAPSHOT = {
   labels: [],
   warnings: [],
 };
+
+const STEPS = [{ name: 'Grow', description: 'Grow it.', commands: ['pvresize'] }];
 
 export const GIB = 1_073_741_824;
 export const JOB_ID = '00000000-0000-4000-8000-000000000001';
@@ -86,6 +90,26 @@ export const VOLUME_INPUT: VolumeCreateInput = {
   mountPoint: '/mnt/ohr/media',
 };
 
+export const EXPAND_INPUT: PoolExpandInput = {
+  poolId: 'p1',
+  poolUuid: POOL_UUID,
+  redundancy: 'shr1',
+  wipe: false,
+  newDrives: [],
+  target: { redundancy: 'shr1', drives: [], tiers: [], rawBytes: 2 * GIB, usableBytes: GIB },
+  usableBytesBefore: GIB,
+  actions: [{ kind: 'resize-physical-volume', tier: 1 }],
+  growVolume: null,
+};
+
+export const GROW_INPUT: VolumeGrowInput = {
+  poolId: 'p1',
+  name: 'data',
+  filesystem: 'btrfs',
+  mountPoint: '/mnt/ohr/data',
+  size: { kind: 'all-free' },
+};
+
 export interface Received {
   readonly method: string;
   readonly params: unknown;
@@ -116,12 +140,25 @@ export function fakeHandlers(received: Received[]): Handlers {
           '/dev/sdb holds a filesystem. Choose wipe to erase it.',
         ]),
       ),
-    'volumes.previewGrow': () =>
-      Promise.reject(new RpcError('rejected', 'The volume cannot grow.', ['Not here.'])),
+    'volumes.previewGrow': (params) =>
+      record('volumes.previewGrow', params, {
+        input: GROW_INPUT,
+        sizeBytes: 2 * GIB,
+        steps: STEPS,
+        stateHash: 'hash-1',
+      }),
     'drives.previewReplace': () =>
-      Promise.reject(new RpcError('rejected', 'The drive cannot be replaced.', ['Not here.'])),
-    'pools.previewExpand': () =>
-      Promise.reject(new RpcError('rejected', 'The pool cannot grow.', ['Not in this test.'])),
+      Promise.reject(
+        new RpcError('rejected', 'The drive cannot be replaced.', [
+          '/dev/sdb is smaller than /dev/sda.',
+        ]),
+      ),
+    'pools.previewExpand': (params) =>
+      record('pools.previewExpand', params, {
+        input: EXPAND_INPUT,
+        steps: STEPS,
+        stateHash: 'hash-1',
+      }),
     'volumes.previewCreate': (params) =>
       record('volumes.previewCreate', params, {
         input: VOLUME_INPUT,

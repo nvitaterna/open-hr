@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   DRIVE,
+  EXPAND_INPUT,
   GIB,
+  GROW_INPUT,
   JOB,
   JOB_ID,
   POOL,
@@ -145,5 +147,115 @@ describe('creating a volume and retrying', () => {
     const response = await web.call('POST', `/api/v1/jobs/${JOB_ID}/retry`);
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({ error: 'conflict' });
+  });
+});
+
+describe('growing a pool', () => {
+  it('previews for the pool in the path and starts the job', async () => {
+    const preview = await web.call('POST', '/api/v1/pools/p1/expand/preview', {
+      devices: ['/dev/sdb'],
+      wipe: true,
+      growVolume: 'data',
+    });
+    expect(preview.statusCode).toBe(200);
+    expect(web.received[0]).toEqual({
+      method: 'pools.previewExpand',
+      params: { poolId: 'p1', devices: ['/dev/sdb'], wipe: true, growVolume: 'data' },
+    });
+    const { input, stateHash } = preview.json<{ input: unknown; stateHash: string }>();
+    const started = await web.call('POST', '/api/v1/pools/p1/expand', { input, stateHash });
+    expect(started.statusCode).toBe(202);
+    expect(started.json()).toEqual({ job: JOB });
+    expect(web.received[1]).toEqual({
+      method: 'jobs.submit',
+      params: { kind: 'pool-expand', input: EXPAND_INPUT, stateHash: 'hash-1' },
+    });
+  });
+
+  it('refuses an input for another pool, a malformed body, and a stale state hash', async () => {
+    const other = await web.call('POST', '/api/v1/pools/p2/expand', {
+      input: EXPAND_INPUT,
+      stateHash: 'hash-1',
+    });
+    expect(other.statusCode).toBe(400);
+    const malformed = await web.call('POST', '/api/v1/pools/p1/expand/preview', { wipe: false });
+    expect(malformed.statusCode).toBe(400);
+    expect(web.received).toEqual([]);
+    const stale = await web.call('POST', '/api/v1/pools/p1/expand', {
+      input: EXPAND_INPUT,
+      stateHash: 'stale',
+    });
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json()).toMatchObject({ error: 'state-changed' });
+  });
+});
+
+describe('replacing a drive', () => {
+  it('passes a refusal on with its reasons', async () => {
+    const response = await web.call('POST', '/api/v1/pools/p1/replace/preview', {
+      oldDrive: '/dev/sda',
+      newDrive: '/dev/sdb',
+      wipe: false,
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.json()).toEqual({
+      error: 'rejected',
+      message: 'The drive cannot be replaced.',
+      reasons: ['/dev/sdb is smaller than /dev/sda.'],
+    });
+  });
+
+  it('starts the job with the input of a preview', async () => {
+    const input = {
+      ...EXPAND_INPUT,
+      oldDrive: null,
+      newDrives: [{ path: '/dev/sdb', serial: null, wwn: null, sizeBytes: GIB, driveUuid: JOB_ID }],
+    };
+    const started = await web.call('POST', '/api/v1/pools/p1/replace', {
+      input,
+      stateHash: 'hash-1',
+    });
+    expect(started.statusCode).toBe(202);
+    expect(web.received[0]).toEqual({
+      method: 'jobs.submit',
+      params: { kind: 'drive-replace', input, stateHash: 'hash-1' },
+    });
+    const other = await web.call('POST', '/api/v1/pools/p2/replace', {
+      input,
+      stateHash: 'hash-1',
+    });
+    expect(other.statusCode).toBe(400);
+  });
+});
+
+describe('growing a volume', () => {
+  it('previews the volume in the path and starts the job', async () => {
+    const preview = await web.call('POST', '/api/v1/pools/p1/volumes/data/grow/preview', {
+      size: { kind: 'add-bytes', bytes: GIB },
+    });
+    expect(preview.statusCode).toBe(200);
+    expect(web.received[0]).toEqual({
+      method: 'volumes.previewGrow',
+      params: { poolId: 'p1', name: 'data', size: { kind: 'add-bytes', bytes: GIB } },
+    });
+    const started = await web.call('POST', '/api/v1/pools/p1/volumes/data/grow', {
+      input: GROW_INPUT,
+      stateHash: 'hash-1',
+    });
+    expect(started.statusCode).toBe(202);
+    expect(web.received[1]).toEqual({
+      method: 'jobs.submit',
+      params: { kind: 'volume-grow', input: GROW_INPUT, stateHash: 'hash-1' },
+    });
+  });
+
+  it('refuses an input for another volume than the path names', async () => {
+    const response = await web.call('POST', '/api/v1/pools/p1/volumes/media/grow', {
+      input: GROW_INPUT,
+      stateHash: 'hash-1',
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'invalid-request' });
+    expect(web.received).toEqual([]);
   });
 });
