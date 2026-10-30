@@ -1,6 +1,6 @@
 {
   "name": "open-hr",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "Open Hybrid RAID: Synology Hybrid RAID for any Linux box.",
   "license": "MIT",
