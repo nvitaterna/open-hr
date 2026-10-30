@@ -17,7 +17,8 @@ import { VolumeTable } from '../components/volume-table.tsx';
 import { REDUNDANCY_LABELS } from '../labels.ts';
 import { layoutTiers } from '../tier-layout.ts';
 
-const DRIVE_HEADINGS = ['Drive', 'Model', 'Serial', 'Size', 'Label', 'In the pool'];
+const DRIVE_HEADINGS = ['Drive', 'Model', 'Serial', 'Size', 'Label', 'In the pool', 'Actions'];
+const LINK = 'text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400';
 const MEMBERSHIP_LABELS: Record<PoolView['drives'][number]['membership'], string> = {
   member: 'Yes',
   removed: 'No longer in the pool',
@@ -25,6 +26,58 @@ const MEMBERSHIP_LABELS: Record<PoolView['drives'][number]['membership'], string
 
 function memberCount(pool: PoolView): number {
   return pool.drives.filter((drive) => drive.membership === 'member').length;
+}
+
+/** True when a tier has fewer drives than its array expects: one is gone from the machine. */
+function hasMissingDrive(pool: PoolView): boolean {
+  return pool.tiers.some(
+    (tier) => tier.expectedMembers !== null && tier.members.length < tier.expectedMembers,
+  );
+}
+
+function poolPath(pool: PoolView): string {
+  return `/pools/${encodeURIComponent(pool.id)}`;
+}
+
+function ReplaceCell({
+  pool,
+  drive,
+}: {
+  readonly pool: PoolView;
+  readonly drive: PoolView['drives'][number];
+}): ReactElement {
+  if (drive.membership !== 'member') {
+    return <td className={CELL}>{NONE}</td>;
+  }
+  return (
+    <td className={CELL}>
+      <Link
+        to={`${poolPath(pool)}/replace?drive=${encodeURIComponent(drive.path)}`}
+        className={LINK}
+        aria-label={`Replace ${drive.path}`}
+      >
+        Replace
+      </Link>
+    </td>
+  );
+}
+
+function DriveActions({ pool }: { readonly pool: PoolView }): ReactElement {
+  return (
+    <div className="flex flex-wrap gap-4">
+      {hasMissingDrive(pool) && (
+        <Link to={`${poolPath(pool)}/replace`} className={LINK}>
+          Replace the missing drive
+        </Link>
+      )}
+      <Link to={`${poolPath(pool)}/add-drives`} className={LINK}>
+        Add drives
+      </Link>
+      <Link to={`${poolPath(pool)}/expand`} className={LINK}>
+        Use free space
+      </Link>
+    </div>
+  );
 }
 
 function Drives({ pool }: { readonly pool: PoolView }): ReactElement {
@@ -40,6 +93,7 @@ function Drives({ pool }: { readonly pool: PoolView }): ReactElement {
           <td className={`${CELL} text-right tabular-nums`}>{formatSize(drive.sizeBytes)}</td>
           <td className={CELL}>{drive.label}</td>
           <td className={CELL}>{MEMBERSHIP_LABELS[drive.membership]}</td>
+          <ReplaceCell pool={pool} drive={drive} />
         </tr>
       ))}
     </DataTable>
@@ -89,10 +143,7 @@ function PoolDetail({ pool }: { readonly pool: PoolView }): ReactElement {
       <Section
         title="Volumes"
         aside={
-          <Link
-            to={`/pools/${encodeURIComponent(pool.id)}/volumes/new`}
-            className="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-          >
+          <Link to={`${poolPath(pool)}/volumes/new`} className={LINK}>
             Create volume
           </Link>
         }
@@ -100,9 +151,10 @@ function PoolDetail({ pool }: { readonly pool: PoolView }): ReactElement {
         <VolumeTable
           items={pool.volumes.map((volume) => ({ poolId: pool.id, volume }))}
           showPool={false}
+          showGrow={true}
         />
       </Section>
-      <Section title="Drives">
+      <Section title="Drives" aside={<DriveActions pool={pool} />}>
         <Drives pool={pool} />
       </Section>
     </div>

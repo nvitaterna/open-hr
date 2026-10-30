@@ -15,7 +15,13 @@ import { CoreUnavailableError } from '@ohr/rpc/core-unavailable-error';
 import { RpcError } from '@ohr/rpc/rpc-error';
 import { poolCreateRequestSchema } from '@ohr/shared/pool-create-request';
 import {
+  driveReplacePreviewRequestSchema,
+  driveReplaceSubmissionSchema,
+  poolExpandPreviewRequestSchema,
+  poolExpandSubmissionSchema,
   poolSubmissionSchema,
+  volumeGrowPreviewRequestSchema,
+  volumeGrowSubmissionSchema,
   volumePreviewRequestSchema,
   volumeSubmissionSchema,
 } from '@ohr/shared/web-api';
@@ -36,8 +42,20 @@ const STATUS_BY_CODE: Record<RpcErrorCode, number> = {
 
 const idParams = z.strictObject({ id: z.string().min(1) });
 const nameParams = z.strictObject({ name: z.string().min(1) });
+const volumeParams = z.strictObject({ id: z.string().min(1), name: z.string().min(1) });
 const jobIdParams = z.strictObject({ id: z.uuid() });
 const systemQuery = z.strictObject({ smart: z.enum(['true', 'false']).optional() });
+
+/** Refuses a submission whose input is for another pool than the path names. */
+function samePool(inputPoolId: string, pathPoolId: string, what: string): void {
+  if (inputPoolId !== pathPoolId) {
+    throw new ApiProblem(
+      HTTP.badRequest,
+      'invalid-request',
+      `The ${what} is for pool ${inputPoolId}, not ${pathPoolId}.`,
+    );
+  }
+}
 
 function coreProblem(error: unknown): unknown {
   if (error instanceof RpcError) {
@@ -106,19 +124,65 @@ function registerCreateRoutes(app: FastifyInstance, ask: Ask): void {
   app.post('/api/v1/pools/:id/volumes', async (request, reply) => {
     const { id } = idParams.parse(request.params);
     const { input, stateHash } = volumeSubmissionSchema.parse(request.body);
-    if (input.poolId !== id) {
-      throw new ApiProblem(
-        HTTP.badRequest,
-        'invalid-request',
-        `The volume is for pool ${input.poolId}, not ${id}.`,
-      );
-    }
+    samePool(input.poolId, id, 'volume');
     const result = await ask('jobs.submit', { kind: 'volume-create', input, stateHash });
     return reply.code(HTTP.accepted).send(result);
   });
 
   app.post('/api/v1/jobs/:id/retry', async (request, reply) => {
     const result = await ask('jobs.retry', jobIdParams.parse(request.params));
+    return reply.code(HTTP.accepted).send(result);
+  });
+}
+
+/** Growing a pool, replacing a drive, and growing a volume (decision 0011, "Interfaces"). */
+function registerExpansionRoutes(app: FastifyInstance, ask: Ask): void {
+  app.post('/api/v1/pools/:id/expand/preview', (request) => {
+    const { id } = idParams.parse(request.params);
+    const body = poolExpandPreviewRequestSchema.parse(request.body);
+    return ask('pools.previewExpand', { ...body, poolId: id });
+  });
+
+  app.post('/api/v1/pools/:id/expand', async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const { input, stateHash } = poolExpandSubmissionSchema.parse(request.body);
+    samePool(input.poolId, id, 'expansion');
+    const result = await ask('jobs.submit', { kind: 'pool-expand', input, stateHash });
+    return reply.code(HTTP.accepted).send(result);
+  });
+
+  app.post('/api/v1/pools/:id/replace/preview', (request) => {
+    const { id } = idParams.parse(request.params);
+    const body = driveReplacePreviewRequestSchema.parse(request.body);
+    return ask('drives.previewReplace', { ...body, poolId: id });
+  });
+
+  app.post('/api/v1/pools/:id/replace', async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const { input, stateHash } = driveReplaceSubmissionSchema.parse(request.body);
+    samePool(input.poolId, id, 'replacement');
+    const result = await ask('jobs.submit', { kind: 'drive-replace', input, stateHash });
+    return reply.code(HTTP.accepted).send(result);
+  });
+
+  app.post('/api/v1/pools/:id/volumes/:name/grow/preview', (request) => {
+    const { id, name } = volumeParams.parse(request.params);
+    const body = volumeGrowPreviewRequestSchema.parse(request.body);
+    return ask('volumes.previewGrow', { ...body, poolId: id, name });
+  });
+
+  app.post('/api/v1/pools/:id/volumes/:name/grow', async (request, reply) => {
+    const { id, name } = volumeParams.parse(request.params);
+    const { input, stateHash } = volumeGrowSubmissionSchema.parse(request.body);
+    samePool(input.poolId, id, 'volume');
+    if (input.name !== name) {
+      throw new ApiProblem(
+        HTTP.badRequest,
+        'invalid-request',
+        `The input grows volume ${input.name}, not ${name}.`,
+      );
+    }
+    const result = await ask('jobs.submit', { kind: 'volume-grow', input, stateHash });
     return reply.code(HTTP.accepted).send(result);
   });
 }
@@ -132,4 +196,5 @@ export function registerApiRoutes(app: FastifyInstance, core: CoreLink): void {
     });
   registerReadRoutes(app, ask);
   registerCreateRoutes(app, ask);
+  registerExpansionRoutes(app, ask);
 }

@@ -5,9 +5,15 @@
 
 import { z } from 'zod';
 
+import { driveReplaceInputSchema } from './drive-replace-input.ts';
+import { driveReplaceRequestSchema } from './drive-replace-request.ts';
 import { poolCreateInputSchema } from './pool-create-input.ts';
+import { poolExpandInputSchema } from './pool-expand-input.ts';
+import { poolExpandRequestSchema } from './pool-expand-request.ts';
 import { volumeCreateInputSchema } from './volume-create-input.ts';
 import { volumeCreateRequestSchema } from './volume-create-request.ts';
+import { volumeGrowInputSchema } from './volume-grow-input.ts';
+import { volumeGrowRequestSchema } from './volume-grow-request.ts';
 
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,31}$/u;
 const stateHashSchema = z.string().min(1);
@@ -63,6 +69,36 @@ export const volumeSubmissionSchema = z.strictObject({
   stateHash: stateHashSchema,
 });
 
+/** `POST /api/v1/pools/:id/expand/preview`: drives to add, or none to use leftover space. */
+export const poolExpandPreviewRequestSchema = poolExpandRequestSchema.omit({ poolId: true });
+
+/** `POST /api/v1/pools/:id/expand`: like poolSubmissionSchema, for growing a pool. */
+export const poolExpandSubmissionSchema = z.strictObject({
+  input: poolExpandInputSchema,
+  stateHash: stateHashSchema,
+});
+
+/** `POST /api/v1/pools/:id/replace/preview`: the old drive (null when gone) and the new one. */
+export const driveReplacePreviewRequestSchema = driveReplaceRequestSchema.omit({ poolId: true });
+
+/** `POST /api/v1/pools/:id/replace`: like poolSubmissionSchema, for replacing a drive. */
+export const driveReplaceSubmissionSchema = z.strictObject({
+  input: driveReplaceInputSchema,
+  stateHash: stateHashSchema,
+});
+
+/** `POST /api/v1/pools/:id/volumes/:name/grow/preview`: how much to grow; the volume comes from the path. */
+export const volumeGrowPreviewRequestSchema = volumeGrowRequestSchema.omit({
+  poolId: true,
+  name: true,
+});
+
+/** `POST /api/v1/pools/:id/volumes/:name/grow`: like poolSubmissionSchema, for growing a volume. */
+export const volumeGrowSubmissionSchema = z.strictObject({
+  input: volumeGrowInputSchema,
+  stateHash: stateHashSchema,
+});
+
 export type SetupStatus = z.infer<typeof setupStatusSchema>;
 export type SetupRequest = z.infer<typeof setupRequestSchema>;
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
@@ -71,3 +107,9 @@ export type ApiError = z.infer<typeof apiErrorSchema>;
 export type PoolSubmission = z.infer<typeof poolSubmissionSchema>;
 export type VolumePreviewRequest = z.infer<typeof volumePreviewRequestSchema>;
 export type VolumeSubmission = z.infer<typeof volumeSubmissionSchema>;
+export type PoolExpandPreviewRequest = z.infer<typeof poolExpandPreviewRequestSchema>;
+export type PoolExpandSubmission = z.infer<typeof poolExpandSubmissionSchema>;
+export type DriveReplacePreviewRequest = z.infer<typeof driveReplacePreviewRequestSchema>;
+export type DriveReplaceSubmission = z.infer<typeof driveReplaceSubmissionSchema>;
+export type VolumeGrowPreviewRequest = z.infer<typeof volumeGrowPreviewRequestSchema>;
+export type VolumeGrowSubmission = z.infer<typeof volumeGrowSubmissionSchema>;

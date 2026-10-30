@@ -15,11 +15,17 @@ import {
 import type { EventData, Result } from '@ohr/rpc/contract';
 import type { PoolCreateRequest } from '@ohr/shared/pool-create-request';
 import type {
+  DriveReplacePreviewRequest,
+  DriveReplaceSubmission,
   LoginRequest,
   Me,
+  PoolExpandPreviewRequest,
+  PoolExpandSubmission,
   PoolSubmission,
   SetupRequest,
   SetupStatus,
+  VolumeGrowPreviewRequest,
+  VolumeGrowSubmission,
   VolumePreviewRequest,
   VolumeSubmission,
 } from '@ohr/shared/web-api';
@@ -35,6 +41,23 @@ const ME_KEY = 'me';
 function sessionChanged(client: QueryClient, me: Me | null): Promise<void> {
   client.setQueryData([ME_KEY], me);
   return client.invalidateQueries({ predicate: (query) => query.queryKey[0] !== ME_KEY });
+}
+
+function poolPath(poolId: string): string {
+  return `/pools/${encodeURIComponent(poolId)}`;
+}
+
+function volumePath(poolId: string, name: string): string {
+  return `${poolPath(poolId)}/volumes/${encodeURIComponent(name)}`;
+}
+
+/** A mutation that starts a job from a preview, then refreshes the job list. */
+function useSubmitJob<S>(path: string): UseMutationResult<Result<'jobs.submit'>, Error, S> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (submission: S) => apiPost<Result<'jobs.submit'>>(path, submission),
+    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.jobs }),
+  });
 }
 
 export const queryKeys = {
@@ -170,6 +193,59 @@ export function useCreateVolume(
       apiPost<Result<'jobs.submit'>>(`/pools/${encodeURIComponent(poolId)}/volumes`, submission),
     onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.jobs }),
   });
+}
+
+/** Plans adding drives to `poolId`, or using the space its drives already have. */
+export function usePreviewExpand(
+  poolId: string,
+): UseMutationResult<Result<'pools.previewExpand'>, Error, PoolExpandPreviewRequest> {
+  return useMutation({
+    mutationFn: (request: PoolExpandPreviewRequest) =>
+      apiPost<Result<'pools.previewExpand'>>(`${poolPath(poolId)}/expand/preview`, request),
+  });
+}
+
+/** Starts the pool-expand job from a preview. */
+export function useExpandPool(
+  poolId: string,
+): UseMutationResult<Result<'jobs.submit'>, Error, PoolExpandSubmission> {
+  return useSubmitJob(`${poolPath(poolId)}/expand`);
+}
+
+/** Plans replacing a drive of `poolId`. */
+export function usePreviewReplace(
+  poolId: string,
+): UseMutationResult<Result<'drives.previewReplace'>, Error, DriveReplacePreviewRequest> {
+  return useMutation({
+    mutationFn: (request: DriveReplacePreviewRequest) =>
+      apiPost<Result<'drives.previewReplace'>>(`${poolPath(poolId)}/replace/preview`, request),
+  });
+}
+
+/** Starts the drive-replace job from a preview. */
+export function useReplaceDrive(
+  poolId: string,
+): UseMutationResult<Result<'jobs.submit'>, Error, DriveReplaceSubmission> {
+  return useSubmitJob(`${poolPath(poolId)}/replace`);
+}
+
+/** Plans growing volume `name` of `poolId`. */
+export function usePreviewGrow(
+  poolId: string,
+  name: string,
+): UseMutationResult<Result<'volumes.previewGrow'>, Error, VolumeGrowPreviewRequest> {
+  return useMutation({
+    mutationFn: (request: VolumeGrowPreviewRequest) =>
+      apiPost<Result<'volumes.previewGrow'>>(`${volumePath(poolId, name)}/grow/preview`, request),
+  });
+}
+
+/** Starts the volume-grow job from a preview. */
+export function useGrowVolume(
+  poolId: string,
+  name: string,
+): UseMutationResult<Result<'jobs.submit'>, Error, VolumeGrowSubmission> {
+  return useSubmitJob(`${volumePath(poolId, name)}/grow`);
 }
 
 export function useJobs(): UseQueryResult<Result<'jobs.list'>> {
