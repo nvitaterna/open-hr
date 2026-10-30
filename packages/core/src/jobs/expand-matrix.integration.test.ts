@@ -305,14 +305,14 @@ describe.skipIf(!isRoot).each(CASES)('$poolId: $sizesGib GiB plus $addGib GiB', 
           .filter((step) => step.name.startsWith('wait for'))
           .map((step) => step.index),
       );
-      expect(progress.some((event) => event.operation === 'reshape')).toBe(true);
+      expect(progress.map((event) => event.operation)).toContain('reshape');
       expect(
-        progress.every(
+        progress.filter(
           (event) =>
-            waitSteps.has(event.step) &&
-            (event.fraction === null || (event.fraction >= 0 && event.fraction <= 1)),
+            !waitSteps.has(event.step) ||
+            (event.fraction !== null && (event.fraction < 0 || event.fraction > 1)),
         ),
-      ).toBe(true);
+      ).toEqual([]);
     },
     EXPAND_TIMEOUT_MS,
   );

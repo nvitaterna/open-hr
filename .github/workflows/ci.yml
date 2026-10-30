@@ -80,7 +80,8 @@ jobs:
       - run: sudo DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends gdisk mdadm lvm2 btrfs-progs
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: sudo env "PATH=$PATH" pnpm --filter @ohr/core test:integration
+      # GITHUB_ACTIONS through sudo, so vitest reports failures as annotations.
+      - run: sudo env "PATH=$PATH" GITHUB_ACTIONS=true pnpm --filter @ohr/core test:integration
 
   package:
     name: Package, install, and remove
