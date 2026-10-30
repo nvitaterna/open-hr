@@ -170,6 +170,19 @@ describe.skipIf(!isRoot)('ohr-core killed during a reshape', () => {
     return await rpc.call('jobs.get', { id: jobId });
   }
 
+  /** The job's last log lines, read from the database rather than over the socket. */
+  function storedLog(): string[] {
+    const store = JobStore.open(dir('ohr.db'));
+    try {
+      return store
+        .logLines(jobId)
+        .map((line) => line.line)
+        .slice(-12);
+    } finally {
+      store.close();
+    }
+  }
+
   async function stepStatus(name: string): Promise<string> {
     return (await job()).job.steps.find((step) => step.name === name)?.status ?? 'missing';
   }
@@ -350,7 +363,7 @@ describe.skipIf(!isRoot)('ohr-core killed during a reshape', () => {
       group: group?.sizeBytes,
       array: Number((await runChecked(runCommand, 'blockdev', ['--getsize64', tier1])).trim()),
       volume: await runChecked(runCommand, 'pvs', ['--units', 'b', '-o', 'pv_name,pv_size', tier1]),
-      log: (await job()).log.map((line) => line.line).slice(-12),
+      log: storedLog(),
     };
     expect(sizes).toEqual({ ...sizes, group: input.target.usableBytes });
     await mountVolume(runCommand, {
