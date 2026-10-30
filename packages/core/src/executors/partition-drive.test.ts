@@ -4,10 +4,24 @@ import { type PlannedPartition, planPool } from '@ohr/shared/planner';
 
 import { CommandError } from '../command-runner.ts';
 import { fakeRunner, ok } from '../fake-system-test-helpers.ts';
-import { partitionDrive, partitionPath, sgdiskArgs } from './partition-drive.ts';
+import {
+  addPartitions,
+  partitionDrive,
+  partitionPath,
+  partxAddArgs,
+  sgdiskAddArgs,
+  sgdiskArgs,
+} from './partition-drive.ts';
 
 const GIB = 1024 ** 3;
 const START_ERROR = /Partition 2 start/u;
+const NOT_A_TIER = /Only tier partitions are added to a drive in use, not label/u;
+const NOTHING_TO_ADD = /at least one partition to add/u;
+
+/** The tier partitions of the planned 8 GiB drive, without its label partition. */
+function tierPartitions(): readonly PlannedPartition[] {
+  return plannedPartitions().filter((partition) => partition.role === 'tier');
+}
 
 /** The partitions planned for an 8 GiB drive in a 4, 8, 8 GiB pool. */
 function plannedPartitions(): readonly PlannedPartition[] {
@@ -98,6 +112,92 @@ describe('partitionDrive', () => {
         poolId: 'p1',
         partitions: plannedPartitions(),
       }),
+    ).rejects.toThrow(CommandError);
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe('sgdiskAddArgs', () => {
+  it('adds the partitions without clearing the table', () => {
+    const args = sgdiskAddArgs({
+      devicePath: '/dev/sdb',
+      poolId: 'p1',
+      partitions: tierPartitions(),
+    });
+    expect(args).not.toContain('--clear');
+    expect(args.slice(0, 6)).toEqual([
+      ...['--new', '2:17M:+4015M'],
+      ...['--typecode', '2:FD00'],
+      ...['--change-name', '2:ohr-p1-t1'],
+    ]);
+    expect(args.at(-1)).toBe('/dev/sdb');
+  });
+
+  it('refuses a label partition, which only a new drive gets', () => {
+    expect(() =>
+      sgdiskAddArgs({ devicePath: '/dev/sdb', poolId: 'p1', partitions: plannedPartitions() }),
+    ).toThrow(NOT_A_TIER);
+  });
+
+  it('refuses to add nothing', () => {
+    expect(() => sgdiskAddArgs({ devicePath: '/dev/sdb', poolId: 'p1', partitions: [] })).toThrow(
+      NOTHING_TO_ADD,
+    );
+  });
+});
+
+describe('partxAddArgs', () => {
+  it('tells the kernel about one partition', () => {
+    expect(partxAddArgs('/dev/sdb', [3])).toEqual(['--add', '--nr', '3:3', '/dev/sdb']);
+  });
+
+  it('covers every new partition in one range', () => {
+    expect(partxAddArgs('/dev/sdb', [4, 3])).toEqual(['--add', '--nr', '3:4', '/dev/sdb']);
+  });
+
+  it('refuses to add nothing', () => {
+    expect(() => partxAddArgs('/dev/sdb', [])).toThrow(NOTHING_TO_ADD);
+  });
+});
+
+describe('addPartitions', () => {
+  it('adds the partitions, tells the kernel about them, and wipes them', async () => {
+    const { run, calls } = fakeRunner(
+      new Map([
+        ['sgdisk', ok('')],
+        ['partx', ok('')],
+        ['udevadm', ok('')],
+        ['wipefs', ok('')],
+      ]),
+    );
+    const partitions = tierPartitions();
+    const paths = await addPartitions(run, {
+      devicePath: '/dev/nvme0n1',
+      poolId: 'p1',
+      partitions,
+    });
+    const expected = partitions.map((partition) => `/dev/nvme0n1p${partition.number}`);
+    expect(paths).toEqual(expected);
+    expect(calls.map((call) => call.command)).toEqual([
+      'sgdisk',
+      'partx',
+      'udevadm',
+      ...partitions.map(() => 'wipefs'),
+    ]);
+    expect(calls[1]?.args).toEqual(['--add', '--nr', '2:3', '/dev/nvme0n1']);
+  });
+
+  it('stops before partx when sgdisk refuses', async () => {
+    const { run, calls } = fakeRunner(
+      new Map([
+        [
+          'sgdisk',
+          { kind: 'exited', exitCode: 4, stdout: '', stderr: 'Could not create partition' },
+        ],
+      ]),
+    );
+    await expect(
+      addPartitions(run, { devicePath: '/dev/sdb', poolId: 'p1', partitions: tierPartitions() }),
     ).rejects.toThrow(CommandError);
     expect(calls).toHaveLength(1);
   });

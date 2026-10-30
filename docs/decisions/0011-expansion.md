@@ -17,8 +17,19 @@ mdadm 4.4, LVM 2.03.31) with loop devices:
 
 - `mdadm --grow --level=5` on a two-member RAID1 converts it in place, but
   leaves a 64 KiB chunk. mdadm refuses to change the level and the chunk in
-  one command. A second `mdadm --grow --chunk=512` on the two-member RAID5
-  gives the 512 KiB chunk from decision 0004.
+  one command. A second `mdadm --grow --chunk=512` gives the 512 KiB chunk
+  from decision 0004.
+- That chunk change must wait until the array has grown to three members.
+  On a two-member RAID5 that is being written to, `--grow --chunk=512`, or
+  the `--grow --raid-devices=3` that follows it, deadlocks the kernel (md
+  stuck in `mddev_suspend`, writers stuck in `md_handle_request`; only a
+  hard reset recovers). It hung in eight of nine runs with a mounted ext4
+  volume being written, including three with `--raid-devices=3
+  --chunk=512` in one command. The same steps with no writes always passed,
+  which is why the first measurement missed it. Converting, adding, growing
+  to three members with the 64 KiB chunk, and only then setting the 512 KiB
+  chunk (a second, full reshape) passed every run under writes. Measured on
+  Debian 13, kernel 6.12.113, mdadm 4.4, PR 3.
 - `mdadm --add` then `mdadm --grow --raid-devices=n+1` grows a RAID5 without
   `--backup-file`. mdadm keeps the critical section in the members' spare
   space and the data offset does not move, so the grown array is data
@@ -68,9 +79,12 @@ mdadm 4.4, LVM 2.03.31) with loop devices:
   3.3. A new tier needs at least two members under SHR-1 and three under
   SHR-2, like any tier.
 - **Level changes.** Under SHR-1 a two-member RAID1 tier that gains members
-  becomes RAID5: convert the level, set the 512 KiB chunk, then add the
-  members and grow. Under SHR-2 a three-copy RAID1 tier that would gain a
-  fourth member needs a change to RAID6 that mdadm cannot make in place.
+  becomes RAID5: convert the level, add the members and grow, then set the
+  512 KiB chunk once the array has three or more members (see the measured
+  deadlock above). The chunk change is a second reshape of the whole tier,
+  which the preview's time estimate must count. Under SHR-2 a three-copy
+  RAID1 tier that would gain a fourth member needs a change to RAID6 that
+  mdadm cannot make in place.
   The planner refuses that change in M4 and says so. SHR-2 is M5's work.
 - Space on a new drive between the last tier it joins and its capacity is
   unused unless it forms part of a new tier. The preview shows how much, and
@@ -93,9 +107,10 @@ work already done.
   because the kernel cannot re-read a table that is in use); for each
   existing tier that gains members, in tier order, convert its level if
   needed, `mdadm --add` the new partitions, `mdadm --grow --raid-devices`,
-  and wait for the reshape; `pvresize` the arrays that grew; create each new
-  tier's array, `pvcreate`, `vgextend`; rewrite the pool's `mdadm.conf`
-  file; and, if the input names a volume, grow it (below).
+  and wait for the reshape, then on a converted tier `mdadm --grow
+  --chunk=512` and wait again; `pvresize` the arrays that grew; create each
+  new tier's array, `pvcreate`, `vgextend`; rewrite the pool's
+  `mdadm.conf` file; and, if the input names a volume, grow it (below).
 - **`drive-replace`** replaces one member drive with one new drive, which
   must take at least every tier the old one had. Two forms, chosen by the
   planner from live state:

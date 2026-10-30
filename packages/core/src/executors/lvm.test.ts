@@ -8,9 +8,14 @@ import {
   createLogicalVolume,
   createPhysicalVolume,
   createVolumeGroup,
+  extendLogicalVolume,
+  extendVolumeGroup,
   logicalVolumePath,
   lvcreateArgs,
+  lvextendArgs,
+  resizePhysicalVolume,
   vgcreateArgs,
+  vgextendArgs,
 } from './lvm.ts';
 
 const MIB = 1024 ** 2;
@@ -18,6 +23,7 @@ const ARRAYS = ['/dev/md/ohr_p1_t1', '/dev/md/ohr_p1_t2'];
 const REPORT_ARGS = ['--reportformat', 'json', '--units', 'b', '--nosuffix', '--options'];
 const NOT_WHOLE_EXTENTS = /whole number of 4194304-byte extents/u;
 const NO_PHYSICAL_VOLUMES = /at least one physical volume/u;
+const NOTHING_TO_ADD = /at least one physical volume to add/u;
 const NOT_ONE_ROW = /Expected one volume group in the report, got 0/u;
 
 const PV_UUID = 'Ddlhu9-3vYH-l2Fo-vGM6-pcNE-Fnq2-llSfjK';
@@ -183,5 +189,90 @@ describe('createLogicalVolume', () => {
       ['udevadm', 'settle'],
       ['lvs', 'ohr-p1/data'],
     ]);
+  });
+});
+
+describe('vgextendArgs', () => {
+  it('adds the arrays to the pool group', () => {
+    expect(vgextendArgs({ poolId: 'p1', physicalVolumes: ARRAYS })).toEqual(['ohr-p1', ...ARRAYS]);
+  });
+
+  it('refuses to add nothing', () => {
+    expect(() => vgextendArgs({ poolId: 'p1', physicalVolumes: [] })).toThrow(NOTHING_TO_ADD);
+  });
+});
+
+describe('lvextendArgs', () => {
+  it('takes all free space', () => {
+    expect(lvextendArgs({ poolId: 'p1', name: 'data', size: { kind: 'all-free' } })).toEqual([
+      ...['--extents', '+100%FREE'],
+      '/dev/ohr-p1/data',
+    ]);
+  });
+
+  it('grows to an exact size, so a second run asks for the same size', () => {
+    expect(
+      lvextendArgs({ poolId: 'p1', name: 'data', size: { kind: 'bytes', bytes: 16 * MIB } }),
+    ).toEqual(['--size', `${16 * MIB}b`, '/dev/ohr-p1/data']);
+  });
+
+  it('refuses a size that is not whole extents', () => {
+    expect(() =>
+      lvextendArgs({ poolId: 'p1', name: 'data', size: { kind: 'bytes', bytes: MIB } }),
+    ).toThrow(NOT_WHOLE_EXTENTS);
+  });
+});
+
+describe('resizePhysicalVolume', () => {
+  it('resizes and reports the physical volume', async () => {
+    const { run, calls } = fakeRunner(
+      new Map([
+        ['pvresize', ok('')],
+        ['pvs', ok(PVS_REPORT)],
+      ]),
+    );
+    const pv = await resizePhysicalVolume(run, '/dev/md127');
+    expect(pv).toMatchObject({ device: '/dev/md127', sizeBytes: ARRAY_BYTES });
+    expect(calls.map((call) => [call.command, call.args.at(-1)])).toEqual([
+      ['pvresize', '/dev/md127'],
+      ['pvs', '/dev/md127'],
+    ]);
+  });
+});
+
+describe('extendVolumeGroup', () => {
+  it('extends and reports the group', async () => {
+    const { run, calls } = fakeRunner(
+      new Map([
+        ['vgextend', ok('')],
+        ['vgs', ok(VGS_REPORT)],
+      ]),
+    );
+    const vg = await extendVolumeGroup(run, { poolId: 'p1', physicalVolumes: ARRAYS });
+    expect(vg).toMatchObject({ name: 'ohr-p1', sizeBytes: GROUP_BYTES });
+    expect(calls.map((call) => call.command)).toEqual(['vgextend', 'vgs']);
+    expect(calls[0]?.args).toEqual(['ohr-p1', ...ARRAYS]);
+  });
+});
+
+describe('extendLogicalVolume', () => {
+  it('extends and reports the volume without touching its filesystem', async () => {
+    const { run, calls } = fakeRunner(
+      new Map([
+        ['lvextend', ok('')],
+        ['lvs', ok(LVS_REPORT)],
+      ]),
+    );
+    const lv = await extendLogicalVolume(run, {
+      poolId: 'p1',
+      name: 'data',
+      size: { kind: 'all-free' },
+    });
+    expect(lv).toMatchObject({ name: 'data', sizeBytes: GROUP_BYTES });
+    expect(calls.map((call) => [call.command, call.args.at(-1)])).toEqual([
+      ['lvextend', '/dev/ohr-p1/data'],
+      ['lvs', 'ohr-p1/data'],
+    ]);
+    expect(calls[0]?.args).not.toContain('--resizefs');
   });
 });
