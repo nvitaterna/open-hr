@@ -24,6 +24,7 @@ import { systemStateHash } from '../jobs/state-hash.ts';
 import { JobStore } from '../jobs/store.ts';
 import { readSystemState } from '../system-state.ts';
 import { createHandlers } from './handlers.ts';
+import { publishJobEvent } from './job-events.ts';
 import { JobRunner } from './job-runner.ts';
 import { groupId, prepareSocketPath, secureSocket } from './socket.ts';
 import { StateCache } from './state-cache.ts';
@@ -54,22 +55,6 @@ async function resolveGroup(options: DaemonOptions): Promise<number | null> {
     );
   }
   return gid;
-}
-
-function publishJobEvent(server: RpcServer, event: JobEvent): void {
-  if (event.kind === 'job') {
-    server.publish('job.status', { jobId: event.jobId, status: event.status, error: event.error });
-  } else if (event.kind === 'step') {
-    server.publish('job.step', {
-      jobId: event.jobId,
-      index: event.index,
-      name: event.name,
-      status: event.status,
-      error: event.error,
-    });
-  } else {
-    server.publish('job.log', { jobId: event.jobId, step: event.step, line: event.line });
-  }
 }
 
 /** True for events after which the machine may look different. */

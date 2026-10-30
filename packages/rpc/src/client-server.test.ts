@@ -19,6 +19,13 @@ import { type Handlers, RpcServer } from './server.ts';
 const JOB_ID = '00000000-0000-4000-8000-000000000001';
 const OTHER_JOB_ID = '00000000-0000-4000-8000-000000000002';
 const AT = '2026-10-29T12:00:00.000Z';
+const PROGRESS = {
+  jobId: JOB_ID,
+  step: 2,
+  operation: 'reshape',
+  fraction: 0.42,
+  etaSeconds: 3600,
+} as const;
 
 const JOB: JobRecord = {
   id: JOB_ID,
@@ -265,9 +272,14 @@ describe('events', () => {
     await rpc.subscribe((event) => seen.push(event), JOB_ID);
     server.publish('job.log', { jobId: OTHER_JOB_ID, step: 0, line: 'other' });
     server.publish('job.log', { jobId: JOB_ID, step: 0, line: 'mine' });
+    server.publish('job.progress', { ...PROGRESS, jobId: OTHER_JOB_ID });
+    server.publish('job.progress', PROGRESS);
     server.publish('state.changed', { readAt: AT, stateHash: 'def' });
     await rpc.call('jobs.list', {});
-    expect(seen).toEqual([{ event: 'job.log', data: { jobId: JOB_ID, step: 0, line: 'mine' } }]);
+    expect(seen).toEqual([
+      { event: 'job.log', data: { jobId: JOB_ID, step: 0, line: 'mine' } },
+      { event: 'job.progress', data: PROGRESS },
+    ]);
     await rpc.close();
   });
 });

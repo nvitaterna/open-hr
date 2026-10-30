@@ -2,12 +2,21 @@ import type { ReactElement } from 'react';
 
 import type { LogLine, StepRecord } from '@ohr/shared/jobs';
 
+import type { JobProgress } from '../api/queries.ts';
 import { StatusBadge } from './status-badge.tsx';
+import { StepProgress } from './step-progress.tsx';
 
 const LOG_BOX =
   'mt-2 max-h-64 overflow-auto rounded-md bg-zinc-950 p-3 font-mono text-xs leading-relaxed text-zinc-100';
 
-function Step({ step, log }: { step: StepRecord; log: readonly LogLine[] }): ReactElement {
+interface StepProps {
+  readonly step: StepRecord;
+  readonly log: readonly LogLine[];
+  /** Shown only while this step runs. */
+  readonly progress: JobProgress | null;
+}
+
+function Step({ step, log, progress }: StepProps): ReactElement {
   return (
     <li className="py-3 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -17,6 +26,9 @@ function Step({ step, log }: { step: StepRecord; log: readonly LogLine[] }): Rea
         <StatusBadge status={step.status} />
       </div>
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{step.description}</p>
+      {step.status === 'running' && progress?.step === step.index && (
+        <StepProgress progress={progress} />
+      )}
       {step.error !== null && (
         <p className="mt-1 text-sm text-red-700 dark:text-red-400">{step.error}</p>
       )}
@@ -38,6 +50,8 @@ function Step({ step, log }: { step: StepRecord; log: readonly LogLine[] }): Rea
 interface JobStepsProps {
   readonly steps: readonly StepRecord[];
   readonly log: readonly LogLine[];
+  /** The job's last progress event, drawn on the step it came from. */
+  readonly progress: JobProgress | null;
 }
 
 /** Log lines as a terminal-like box. Nothing when there are none. */
@@ -58,12 +72,17 @@ export function LogBox({ lines }: { readonly lines: readonly LogLine[] }): React
   );
 }
 
-/** Each step with its status, commands, error, and log lines. */
-export function JobSteps({ steps, log }: JobStepsProps): ReactElement {
+/** Each step with its status, commands, error, log lines, and progress while it runs. */
+export function JobSteps({ steps, log, progress }: JobStepsProps): ReactElement {
   return (
     <ol className="divide-y divide-zinc-200 dark:divide-zinc-800">
       {steps.map((step) => (
-        <Step key={step.index} step={step} log={log.filter((line) => line.step === step.index)} />
+        <Step
+          key={step.index}
+          step={step}
+          log={log.filter((line) => line.step === step.index)}
+          progress={progress}
+        />
       ))}
     </ol>
   );

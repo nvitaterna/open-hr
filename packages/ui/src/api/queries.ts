@@ -12,7 +12,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 
-import type { Result } from '@ohr/rpc/contract';
+import type { EventData, Result } from '@ohr/rpc/contract';
 import type { PoolCreateRequest } from '@ohr/shared/pool-create-request';
 import type {
   LoginRequest,
@@ -44,6 +44,8 @@ export const queryKeys = {
   drives: ['drives'],
   pools: ['pools'],
   jobs: ['jobs'],
+  /** Per job, the last `job.progress` event. Kept apart from jobs so refetching a job keeps it. */
+  progress: ['job-progress'],
 } as const;
 
 /** The queries that show the machine. A `state.changed` event makes them fetch again. */
@@ -95,6 +97,22 @@ export function useJob(id: string): UseQueryResult<Result<'jobs.get'>> {
     queryKey: [...queryKeys.jobs, id],
     queryFn: () => apiGet(`/jobs/${encodeURIComponent(id)}`),
   });
+}
+
+export type JobProgress = EventData<'job.progress'>;
+
+/**
+ * The last progress a job's running step reported, or null. It only comes
+ * from live events (live-events.ts); core does not store it, so there is
+ * nothing to fetch, and asking again clears it until the next event.
+ */
+export function useJobProgress(id: string): JobProgress | null {
+  return useQuery<JobProgress | null>({
+    queryKey: [...queryKeys.progress, id],
+    queryFn: () => null,
+    initialData: null,
+    staleTime: Number.POSITIVE_INFINITY,
+  }).data;
 }
 
 /** Runs a failed job again from its failed step. */

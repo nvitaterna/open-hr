@@ -99,7 +99,12 @@ async function step(name: string, files: FileReader = sysfs()): Promise<StepDefi
 
 function context(answers: ReadonlyMap<string, CommandResult>): StepContext & { lines: string[] } {
   const lines: string[] = [];
-  return { run: fakeRunner(answers).run, log: (line) => lines.push(line), lines };
+  return {
+    run: fakeRunner(answers).run,
+    log: (line) => lines.push(line),
+    progress: () => undefined,
+    lines,
+  };
 }
 
 function detailAnswers(detail: string): Map<string, CommandResult> {

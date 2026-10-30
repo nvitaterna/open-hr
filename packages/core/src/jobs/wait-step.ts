@@ -1,7 +1,8 @@
 /**
  * The step that waits for md to finish a reshape, recovery, or resync
  * (decision 0011). It only reads, so after a daemon restart or a reboot it
- * attaches to the work the kernel kept running. It logs progress as it goes.
+ * attaches to the work the kernel kept running. It reports every progress
+ * read and logs a line each tenth.
  */
 
 import { mdArrayPath } from '../executors/md-array.ts';
@@ -51,13 +52,17 @@ export function waitStep(
     description: `Wait until ${path} has finished its ${wait.what}`,
     commands: [`read /proc/mdstat until ${path} is idle`],
     precondition: () => Promise.resolve(READY),
-    async action({ log }: StepContext) {
+    async action({ log, progress }: StepContext) {
+      const logProgress = progressLogger(log);
       await waitForSync({
         files: deps.files,
         array: await deps.kernelName(path),
         intervalMs: deps.pollIntervalMs,
         untilInSync: wait.untilInSync === true,
-        onProgress: progressLogger(log),
+        onProgress: (update) => {
+          progress(update);
+          logProgress(update);
+        },
       });
     },
     async postcondition() {

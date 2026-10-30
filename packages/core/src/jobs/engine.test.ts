@@ -43,10 +43,13 @@ function fakeStep(name: string, calls: string[], hooks: Hooks = {}): StepDefinit
   };
 }
 
-/** "kind:status" for status events, "log:line" for log lines. */
+/** "kind:status" for status events, "log:line" for log lines, "progress:fraction" for progress. */
 function describeEvent(event: JobEvent): string {
   if (event.kind === 'log') {
     return `log:${event.line}`;
+  }
+  if (event.kind === 'progress') {
+    return `progress:${event.fraction}`;
   }
   return `${event.kind}:${event.status}`;
 }
@@ -122,6 +125,27 @@ describe('runJob', () => {
       'step:done',
       'job:done',
     ]);
+  });
+
+  it('sends progress to the listener without storing it', async () => {
+    const step: StepDefinition = {
+      ...fakeStep('wait', []),
+      action: ({ progress }) => {
+        progress({ operation: 'reshape', fraction: 0.25, etaSeconds: 600 });
+        return Promise.resolve();
+      },
+    };
+    const { store, def, jobId, events, run } = setUp([fakeStep('one', []), step]);
+    await run(store, def, jobId, { run: fakeRunner(new Map()).run });
+    expect(events.find((event) => event.kind === 'progress')).toEqual({
+      kind: 'progress',
+      jobId,
+      step: 1,
+      operation: 'reshape',
+      fraction: 0.25,
+      etaSeconds: 600,
+    });
+    expect(store.logLines(jobId)).toEqual([]);
   });
 
   it('skips a step whose work is already there', async () => {

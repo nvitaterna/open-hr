@@ -29,6 +29,21 @@ describe('the event stream', () => {
     await expect(stream.waitFor(': keepalive')).resolves.toContain(': keepalive');
   });
 
+  it('relays job progress as it comes', async () => {
+    const stream = await web.openStream();
+    await web.untilSubscribed();
+    const progress = {
+      jobId: JOB_ID,
+      step: 3,
+      operation: 'reshape',
+      fraction: 0.5,
+      etaSeconds: 120,
+    } as const;
+    web.publish('job.progress', progress);
+    const frame = `event: job.progress\ndata: ${JSON.stringify(progress)}\n\n`;
+    await expect(stream.waitFor(frame)).resolves.toContain(frame);
+  });
+
   it('shares one core subscription between streams and lets go of closed ones', async () => {
     const first = await web.openStream();
     const second = await web.openStream();
