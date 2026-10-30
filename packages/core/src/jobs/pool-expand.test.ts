@@ -230,8 +230,12 @@ describe('pool-expand md steps', () => {
       reason: `${TIER2} has 2 members; its chunk changes after it grows`,
     });
     expect(
-      await precondition('set tier 2 chunk', raid5Three, sysfs({ chunk: '65536 (524288)' })),
+      await precondition('set tier 2 chunk', raid5Three, sysfs({ chunk: '524288 (65536)' })),
     ).toMatchObject({ kind: 'already-done' });
+    // Changing away from 512 KiB, to 64 KiB: not this step's work.
+    expect(
+      await precondition('set tier 2 chunk', raid5Three, sysfs({ chunk: '65536 (524288)' })),
+    ).toEqual({ kind: 'ready' });
     expect(
       await precondition('set tier 2 chunk', raid5Three, sysfs({ chunk: '524288' })),
     ).toMatchObject({ kind: 'already-done' });
