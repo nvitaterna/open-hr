@@ -96,4 +96,31 @@ describe('wait step', () => {
       '/dev/md/ohr_p1_t2 is auto-read-only; setting it read-write so its work continues',
     );
   });
+
+  it('waits until a grown array has the size its members give', async () => {
+    const sizes = ['400', '400', '600'];
+    const answers = new Map([
+      [`${SYSFS}/level`, 'raid5'],
+      [`${SYSFS}/raid_disks`, '4'],
+      [`${SYSFS}/component_size`, '100'],
+      [`${SYSFS}/sync_action`, 'idle'],
+      [`${SYSFS}/reshape_position`, 'none'],
+      [`${SYSFS}/degraded`, '0'],
+    ]);
+    const reshaped: FileReader = (path) => {
+      if (path !== '/sys/block/md126/size') {
+        return Promise.resolve(answers.get(path) ?? '');
+      }
+      if (sizes.length > 1) {
+        return Promise.resolve(sizes.shift() ?? '');
+      }
+      return Promise.resolve(sizes[0] ?? '');
+    };
+    await reshapeWait(reshaped).action({
+      run: fakeRunner(new Map()).run,
+      log: () => undefined,
+      progress: () => undefined,
+    });
+    expect(sizes).toEqual(['600']);
+  });
 });

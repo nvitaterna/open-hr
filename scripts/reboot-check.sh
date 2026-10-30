@@ -79,7 +79,7 @@ md_sysfs() {
 }
 
 job_done() {
-  "${OHR[@]}" job list | awk -v id="$1" '$1 == id { print $4 }' | grep -qx done
+  "${OHR[@]}" job list | awk -v id="$1" '$1 == id { print $4 }' | grep -qx 'done'
 }
 
 tier_is() {

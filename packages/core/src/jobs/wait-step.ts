@@ -5,11 +5,15 @@
  * read and logs a line each tenth. An array assembled at boot can be
  * auto-read-only, and then a reshape it was running waits for the first
  * write, which may never come. The step sets such an array read-write first.
+ * md goes idle a moment before a grown array takes its new size, and
+ * mdadm can set the size itself once the kernel is done, so the step also
+ * waits until the size matches the array's members.
  */
 
 import { mdArrayPath } from '../executors/md-array.ts';
 import { setReadWrite } from '../executors/md-reshape.ts';
 import { readSyncState, type SyncProgress, waitForSync } from '../executors/md-sync.ts';
+import type { FileReader } from '../command-runner.ts';
 import type { StepContext, StepDefinition } from './engine.ts';
 import { READY } from './pool-steps.ts';
 import type { MdDeps } from './reshape-steps.ts';
@@ -20,6 +24,53 @@ const LOG_STEPS = 10;
 const SECONDS_PER_MINUTE = 60;
 /** What md's array_state says for an array that becomes read-write on its first write. */
 const AUTO_READ_ONLY = 'read-auto';
+/** md's component_size is in KiB, a block device's size in 512-byte sectors. */
+const SECTORS_PER_KIB = 2;
+/** Members that hold no data, by level. Levels not listed have no size rule here. */
+const REDUNDANT_MEMBERS: Readonly<Record<string, number>> = { raid4: 1, raid5: 1, raid6: 2 };
+const CAPACITY_INTERVAL_MS = 500;
+/** How many reads, CAPACITY_INTERVAL_MS apart, before a size that never comes fails the step. */
+const CAPACITY_READS = 240;
+
+interface Capacity {
+  readonly sectors: number;
+  readonly expected: number;
+}
+
+/** The array's size and the size its level, member count, and member size give, or null for no rule. */
+async function readCapacity(files: FileReader, array: string): Promise<Capacity | null> {
+  const read = async (path: string): Promise<string> =>
+    (await files(`/sys/block/${array}/${path}`))?.trim() ?? '';
+  const level = await read('md/level');
+  const members = Number(await read('md/raid_disks'));
+  const componentKib = Number(await read('md/component_size'));
+  const sectors = Number(await read('size'));
+  let dataMembers: number | null = null;
+  if (level === 'raid1') {
+    dataMembers = 1;
+  } else if (REDUNDANT_MEMBERS[level] !== undefined) {
+    dataMembers = members - REDUNDANT_MEMBERS[level];
+  }
+  if (dataMembers === null || !(dataMembers > 0 && componentKib > 0)) {
+    return null;
+  }
+  return { sectors, expected: componentKib * SECTORS_PER_KIB * dataMembers };
+}
+
+/** Waits until the array has the size its members give. Throws once CAPACITY_READS have passed. */
+async function waitForCapacity(deps: MdDeps, array: string, reads = 0): Promise<void> {
+  const capacity = await readCapacity(deps.files, array);
+  if (capacity === null || capacity.sectors >= capacity.expected) {
+    return;
+  }
+  if (reads >= CAPACITY_READS) {
+    throw new Error(
+      `${array} has ${capacity.sectors} sectors; its members give ${capacity.expected}`,
+    );
+  }
+  await deps.delay(CAPACITY_INTERVAL_MS);
+  await waitForCapacity(deps, array, reads + 1);
+}
 
 /** Logs a line each time the work passes another tenth. */
 function progressLogger(log: (line: string) => void): (progress: SyncProgress) => void {
@@ -75,6 +126,7 @@ export function waitStep(
           logProgress(update);
         },
       });
+      await waitForCapacity(deps, array);
     },
     async postcondition() {
       const state = await readSyncState(deps.files, await deps.kernelName(path));
