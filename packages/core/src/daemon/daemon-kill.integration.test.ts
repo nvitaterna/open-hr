@@ -345,7 +345,14 @@ describe.skipIf(!isRoot)('ohr-core killed during a reshape', () => {
     const [group] = parseVgs(
       await runChecked(runCommand, 'vgs', [...lvmReportArgs(VG_FIELDS), `ohr-${POOL}`]),
     );
-    expect(group?.sizeBytes).toBe(input.target.usableBytes);
+    // On a mismatch, show what md, LVM, and the job saw.
+    const sizes = {
+      group: group?.sizeBytes,
+      array: Number((await runChecked(runCommand, 'blockdev', ['--getsize64', tier1])).trim()),
+      volume: await runChecked(runCommand, 'pvs', ['--units', 'b', '-o', 'pv_name,pv_size', tier1]),
+      log: (await job()).log.map((line) => line.line).slice(-12),
+    };
+    expect(sizes).toEqual({ ...sizes, group: input.target.usableBytes });
     await mountVolume(runCommand, {
       device: logicalVolumePath(POOL, VOLUME),
       type: 'ext4',
