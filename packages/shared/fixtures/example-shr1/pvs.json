@@ -7,14 +7,16 @@
           "vg_name": "ohr-p1",
           "pv_uuid": "Ab7cD2-eF9g-H4iJ-k1Lm-N8oP-q3Rs-T6uV5w",
           "pv_size": "4000640401408",
-          "pv_free": "0"
+          "pv_free": "0",
+          "pe_start": "1048576"
         },
         {
           "pv_name": "/dev/md127",
           "vg_name": "ohr-p1",
           "pv_uuid": "Xq3v8k-Lm2N-pR7s-T4uW-y9Zb-C1dE-f6Gh0J",
           "pv_size": "8001129807872",
-          "pv_free": "0"
+          "pv_free": "0",
+          "pe_start": "1048576"
         }
       ]
     }

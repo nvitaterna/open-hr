@@ -22,6 +22,7 @@ const pvRowSchema = z.object({
   pv_uuid: z.string(),
   pv_size: integerSchema,
   pv_free: integerSchema,
+  pe_start: integerSchema.optional(),
 });
 
 const vgRowSchema = z.object({
@@ -48,7 +49,14 @@ export function lvmReportArgs(fields: readonly string[]): string[] {
   return ['--reportformat', 'json', '--units', 'b', '--nosuffix', '--options', fields.join(',')];
 }
 
-export const PV_FIELDS = ['pv_name', 'vg_name', 'pv_uuid', 'pv_size', 'pv_free'] as const;
+export const PV_FIELDS = [
+  'pv_name',
+  'vg_name',
+  'pv_uuid',
+  'pv_size',
+  'pv_free',
+  'pe_start',
+] as const;
 export const VG_FIELDS = [
   'vg_name',
   'vg_uuid',
@@ -73,6 +81,8 @@ export interface PhysicalVolume {
   readonly uuid: string;
   readonly sizeBytes: number;
   readonly freeBytes: number;
+  /** Where the first extent starts on the device (decision 0011). */
+  readonly firstExtentBytes: number | null;
 }
 
 export interface VolumeGroup {
@@ -106,6 +116,7 @@ export function parsePvs(text: string): PhysicalVolume[] {
     uuid: row.pv_uuid,
     sizeBytes: row.pv_size,
     freeBytes: row.pv_free,
+    firstExtentBytes: row.pe_start ?? null,
   }));
 }
 

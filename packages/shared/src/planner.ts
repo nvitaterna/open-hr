@@ -7,71 +7,20 @@
 
 import { arrayBytesFor, type RaidLevel, volumeGroupBytesFor } from './array-capacity.ts';
 import {
-  END_OF_DRIVE_RESERVE_BYTES,
   FIRST_PARTITION_OFFSET_BYTES,
   LABEL_PARTITION_BYTES,
   MIN_DRIVES,
   MIN_TIER_BYTES,
-  PARTITION_ALIGNMENT_BYTES,
   type Redundancy,
 } from './constants.ts';
-import { alignDown } from './sizes.ts';
-
-const LABEL_PARTITION_NUMBER = 1;
-const RAID1_MIRRORS_SHR1 = 2;
-const RAID1_MIRRORS_SHR2 = 3;
-const RAID5_MIN_MEMBERS = 3;
-const RAID6_MIN_MEMBERS = 4;
-
-/** Offset where tier partitions begin, after the GPT area and the label partition. */
-const TIER_AREA_OFFSET_BYTES = FIRST_PARTITION_OFFSET_BYTES + LABEL_PARTITION_BYTES;
-
-/** Smallest drive the planner accepts. */
-const MINIMUM_DRIVE_BYTES = TIER_AREA_OFFSET_BYTES + MIN_TIER_BYTES + END_OF_DRIVE_RESERVE_BYTES;
-
-/** Space on a drive available to tier partitions. */
-function tierCapacity(sizeBytes: number): number {
-  const end = alignDown(sizeBytes - END_OF_DRIVE_RESERVE_BYTES, PARTITION_ALIGNMENT_BYTES);
-  return end - TIER_AREA_OFFSET_BYTES;
-}
-
-/** md level for a tier with `members` drives, or null if it cannot provide the redundancy. */
-function levelFor(redundancy: Redundancy, members: number): RaidLevel | null {
-  if (redundancy === 'shr1') {
-    if (members >= RAID5_MIN_MEMBERS) {
-      return 'raid5';
-    }
-    if (members === RAID1_MIRRORS_SHR1) {
-      return 'raid1';
-    }
-    return null;
-  }
-  if (members >= RAID6_MIN_MEMBERS) {
-    return 'raid6';
-  }
-  if (members === RAID1_MIRRORS_SHR2) {
-    return 'raid1';
-  }
-  return null;
-}
-
-/**
- * Tier boundaries, as offsets into each drive's tier area. Each boundary is
- * the capacity of some drive. Capacities closer than MIN_TIER_BYTES to the
- * previous boundary are merged into it.
- */
-function tierBoundaries(capacities: readonly number[]): number[] {
-  const sorted = [...new Set(capacities)].sort((a, b) => a - b);
-  const boundaries: number[] = [];
-  let previous = 0;
-  for (const capacity of sorted) {
-    if (capacity - previous >= MIN_TIER_BYTES) {
-      boundaries.push(capacity);
-      previous = capacity;
-    }
-  }
-  return boundaries;
-}
+import {
+  LABEL_PARTITION_NUMBER,
+  levelFor,
+  MINIMUM_DRIVE_BYTES,
+  TIER_AREA_OFFSET_BYTES,
+  tierBoundaries,
+  tierCapacity,
+} from './tier-rules.ts';
 
 function validate(drives: readonly DriveInput[], redundancy: Redundancy): PlanError | null {
   const required = MIN_DRIVES[redundancy];

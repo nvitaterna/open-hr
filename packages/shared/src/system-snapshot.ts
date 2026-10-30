@@ -36,6 +36,7 @@ const blockDeviceSchema: z.ZodType<BlockDevice> = z.lazy(() =>
     partLabel: z.string().nullable(),
     partType: z.string().nullable(),
     partNumber: z.number().int().nullable(),
+    startBytes: z.number().int().nullable(),
     mountpoints: z.array(z.string()),
     children: z.array(blockDeviceSchema),
   }),
@@ -137,6 +138,7 @@ const physicalVolumeSchema: z.ZodType<PhysicalVolume> = z.object({
   uuid: z.string(),
   sizeBytes: z.number(),
   freeBytes: z.number(),
+  firstExtentBytes: z.number().nullable(),
 });
 
 const volumeGroupSchema: z.ZodType<VolumeGroup> = z.object({
