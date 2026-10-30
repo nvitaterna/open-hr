@@ -82,6 +82,11 @@ jobs:
       - run: pnpm build
       # GITHUB_ACTIONS through sudo, so vitest reports failures as annotations.
       - run: sudo env "PATH=$PATH" GITHUB_ACTIONS=true pnpm --filter @ohr/core test:integration
+      - name: Show the kernel and md messages after a failure
+        if: failure()
+        run: |
+          echo "::notice::$(uname -r), $(. /etc/os-release && echo "$PRETTY_NAME"), mdadm $(mdadm --version 2>&1)"
+          echo "::notice::$(sudo dmesg | grep -E 'md[0-9]+|md/raid' | tail -40 | tr '\n' '|')"
 
   package:
     name: Package, install, and remove
