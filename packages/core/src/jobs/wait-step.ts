@@ -10,10 +10,10 @@
  * waits until the size matches the array's members.
  */
 
+import type { FileReader } from '../command-runner.ts';
 import { mdArrayPath } from '../executors/md-array.ts';
 import { setReadWrite } from '../executors/md-reshape.ts';
 import { readSyncState, type SyncProgress, waitForSync } from '../executors/md-sync.ts';
-import type { FileReader } from '../command-runner.ts';
 import type { StepContext, StepDefinition } from './engine.ts';
 import { READY } from './pool-steps.ts';
 import type { MdDeps } from './reshape-steps.ts';
@@ -45,11 +45,12 @@ async function readCapacity(files: FileReader, array: string): Promise<Capacity 
   const members = Number(await read('md/raid_disks'));
   const componentKib = Number(await read('md/component_size'));
   const sectors = Number(await read('size'));
+  const redundant = REDUNDANT_MEMBERS[level];
   let dataMembers: number | null = null;
   if (level === 'raid1') {
     dataMembers = 1;
-  } else if (REDUNDANT_MEMBERS[level] !== undefined) {
-    dataMembers = members - REDUNDANT_MEMBERS[level];
+  } else if (redundant !== undefined) {
+    dataMembers = members - redundant;
   }
   if (dataMembers === null || !(dataMembers > 0 && componentKib > 0)) {
     return null;

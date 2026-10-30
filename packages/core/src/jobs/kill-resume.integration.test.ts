@@ -140,6 +140,19 @@ async function runWithCrashes(
   }
 }
 
+/** What one crash left in the database, and how its step ended on resume. */
+function resumeProblems(result: CrashResult, entry: Interruption): string[] {
+  const problems: string[] = [];
+  if (entry.storedStep !== 'running' || entry.storedJob !== 'running') {
+    problems.push(`${entry.name}: stored as ${entry.storedStep} in a ${entry.storedJob} job`);
+  }
+  const status = result.job.steps[entry.index]?.status;
+  if (!(status === 'skipped' || (status === 'done' && RERUN_STEPS.test(entry.name)))) {
+    problems.push(`${entry.name}: ${status ?? 'missing'} on resume`);
+  }
+  return problems;
+}
+
 /** Checks what every crash left in the database and how each step ended. Returns the problems. */
 function crashProblems(result: CrashResult): string[] {
   const problems: string[] = [];
@@ -156,16 +169,7 @@ function crashProblems(result: CrashResult): string[] {
   if (interrupted.size === 0) {
     problems.push('no step was interrupted');
   }
-  for (const entry of result.interruptions) {
-    if (entry.storedStep !== 'running' || entry.storedJob !== 'running') {
-      problems.push(`${entry.name}: stored as ${entry.storedStep} in a ${entry.storedJob} job`);
-    }
-    const status = result.job.steps[entry.index]?.status;
-    if (!(status === 'skipped' || (status === 'done' && RERUN_STEPS.test(entry.name)))) {
-      problems.push(`${entry.name}: ${status ?? 'missing'} on resume`);
-    }
-  }
-  return problems;
+  return [...problems, ...result.interruptions.flatMap((entry) => resumeProblems(result, entry))];
 }
 
 async function runToEnd(store: JobStore, definition: JobDefinition): Promise<void> {
