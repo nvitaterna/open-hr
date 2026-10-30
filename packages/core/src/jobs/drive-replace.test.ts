@@ -95,7 +95,11 @@ async function precondition(
   if (found === undefined) {
     throw new Error(`no step ${name}`);
   }
-  return found.precondition({ run: fakeRunner(new Map()).run, log: () => undefined });
+  return found.precondition({
+    run: fakeRunner(new Map()).run,
+    log: () => undefined,
+    progress: () => undefined,
+  });
 }
 
 describe('buildDriveReplaceJob', () => {
@@ -172,7 +176,11 @@ describe('drive-replace md steps', () => {
     const failed = tier1('sdc2[2] sdb2[1](F) sda2[0]', '[3/2] [U_U]');
     const job = await steps('/dev/sdb', failed, { mdstat: degraded, degraded: '1' });
     const step = job.find((candidate) => candidate.name === rebuild);
-    const context = { run: fakeRunner(new Map()).run, log: () => undefined };
+    const context = {
+      run: fakeRunner(new Map()).run,
+      log: () => undefined,
+      progress: () => undefined,
+    };
     expect(await step?.precondition(context)).toEqual({ kind: 'ready' });
     const notDegraded = await steps('/dev/sdb', failed, { mdstat: healthy });
     expect(

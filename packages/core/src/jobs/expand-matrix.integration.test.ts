@@ -34,7 +34,7 @@ import { partitionPath } from '../executors/partition-drive.ts';
 import { readTextFile } from '../file-reader.ts';
 import { attachLoopDevices, type LoopDevices } from '../loop-devices-test-helpers.ts';
 import { readSystemState } from '../system-state.ts';
-import { type JobDefinition, runJob, submitJob } from './engine.ts';
+import { type JobDefinition, type JobEvent, runJob, submitJob } from './engine.ts';
 import { buildPoolCreateJob } from './pool-create.ts';
 import { buildPoolExpandJob } from './pool-expand.ts';
 import { previewPoolExpand } from './pool-expand-preview.ts';
@@ -105,9 +105,23 @@ const CASES: readonly ExpandCase[] = [
 
 const isRoot = process.getuid?.() === 0;
 
-async function runToEnd(store: JobStore, definition: JobDefinition): Promise<string[]> {
+type ProgressEvent = Extract<JobEvent, { readonly kind: 'progress' }>;
+
+/** Runs the job to the end and returns "step: status" for each step. Progress events go to `progress`. */
+async function runToEnd(
+  store: JobStore,
+  definition: JobDefinition,
+  progress: ProgressEvent[] = [],
+): Promise<string[]> {
   const job = submitJob(store, definition, 'hash');
-  const finished = await runJob(store, definition, job.id, { run: runCommand });
+  const finished = await runJob(store, definition, job.id, {
+    run: runCommand,
+    listener: (event) => {
+      if (event.kind === 'progress') {
+        progress.push(event);
+      }
+    },
+  });
   if (finished.status !== 'done') {
     throw new Error(`${definition.kind} job ${finished.status}: ${finished.error ?? 'no error'}`);
   }
@@ -276,13 +290,29 @@ describe.skipIf(!isRoot).each(CASES)('$poolId: $sizesGib GiB plus $addGib GiB', 
         stopWriter = startWriter(mountPoint);
       }
       let written = 0;
+      const progress: ProgressEvent[] = [];
       try {
-        await runToEnd(store, job);
+        await runToEnd(store, job, progress);
       } finally {
         written = await stopWriter();
       }
       // The writer must have kept writing through the reshape, or the case proves nothing.
       expect(written > 0).toBe(testCase.writes);
+      // The wait steps reported the kernel's reshape as it ran (decision 0011).
+      const waitSteps = new Set(
+        job.steps
+          .map((step, index) => ({ name: step.name, index }))
+          .filter((step) => step.name.startsWith('wait for'))
+          .map((step) => step.index),
+      );
+      expect(progress.map((event) => event.operation)).toContain('reshape');
+      expect(
+        progress.filter(
+          (event) =>
+            !waitSteps.has(event.step) ||
+            (event.fraction !== null && (event.fraction < 0 || event.fraction > 1)),
+        ),
+      ).toEqual([]);
     },
     EXPAND_TIMEOUT_MS,
   );

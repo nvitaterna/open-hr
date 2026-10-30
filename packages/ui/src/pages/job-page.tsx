@@ -3,7 +3,7 @@ import { useParams } from 'react-router';
 
 import { firstIncompleteStep, type JobRecord } from '@ohr/shared/jobs';
 
-import { isNotFound, useJob, useRetryJob } from '../api/queries.ts';
+import { isNotFound, useJob, useJobProgress, useRetryJob } from '../api/queries.ts';
 import { JobSteps, LogBox } from '../components/job-steps.tsx';
 import { ErrorMessage, Loading } from '../components/page-states.tsx';
 import { Panel, Section } from '../components/section.tsx';
@@ -90,6 +90,7 @@ function Times({ job }: { readonly job: JobRecord }): ReactElement {
 export function JobPage(): ReactElement {
   const { id = '' } = useParams();
   const query = useJob(id);
+  const progress = useJobProgress(id);
   if (query.isPending) {
     return <Loading what="the job" />;
   }
@@ -114,7 +115,7 @@ export function JobPage(): ReactElement {
       <LogBox lines={log.filter((line) => line.step === null)} />
       <Section title="Steps">
         <Panel>
-          <JobSteps steps={job.steps} log={log} />
+          <JobSteps steps={job.steps} log={log} progress={progress} />
         </Panel>
       </Section>
     </div>

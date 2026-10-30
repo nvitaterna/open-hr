@@ -64,7 +64,7 @@ function labelIo(bytes: Uint8Array): BlockDeviceIo {
 }
 
 function context(run: StepContext['run']): StepContext {
-  return { run, log: () => undefined };
+  return { run, log: () => undefined, progress: () => undefined };
 }
 
 function step(input: PoolCreateInput, name: string, io?: BlockDeviceIo): StepDefinition {

@@ -27,7 +27,7 @@ function vgs(freeBytes: number): string {
 }
 
 function context(answers: ReadonlyMap<string, CommandResult>): StepContext {
-  return { run: fakeRunner(answers).run, log: () => undefined };
+  return { run: fakeRunner(answers).run, log: () => undefined, progress: () => undefined };
 }
 
 function job(input: VolumeGrowInput = INPUT) {

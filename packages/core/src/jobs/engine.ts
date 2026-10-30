@@ -16,6 +16,7 @@ import {
 } from '@ohr/shared/jobs';
 
 import type { CommandRunner } from '../command-runner.ts';
+import type { SyncProgress } from '../executors/md-sync.ts';
 import { JobMismatchError } from './job-mismatch-error.ts';
 import type { JobStore } from './store.ts';
 
@@ -84,6 +85,8 @@ async function runStep(state: RunState, index: number): Promise<string | null> {
   const context: StepContext = {
     run: state.options.run,
     log: (line) => log(state, index, line),
+    progress: (update) =>
+      state.options.listener?.({ kind: 'progress', jobId: state.jobId, step: index, ...update }),
   };
   setStepStatus(state, { index, name: step.name, status: 'running', error: null });
   try {
@@ -137,6 +140,8 @@ export interface StepContext {
   readonly run: CommandRunner;
   /** Adds a line to the job's log. */
   readonly log: (line: string) => void;
+  /** Reports how far the step's work is (decision 0011). Sent to listeners, never stored. */
+  readonly progress: (update: SyncProgress) => void;
 }
 
 export interface StepDefinition {
@@ -191,7 +196,12 @@ export type JobEvent =
       readonly jobId: string;
       readonly step: number | null;
       readonly line: string;
-    };
+    }
+  | ({
+      readonly kind: 'progress';
+      readonly jobId: string;
+      readonly step: number;
+    } & SyncProgress);
 
 export type JobListener = (event: JobEvent) => void;
 

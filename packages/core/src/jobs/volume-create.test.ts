@@ -37,7 +37,7 @@ function step(input: VolumeCreateInput, name: string, deps: VolumeCreateDeps = {
 }
 
 function context(run: StepContext['run']): StepContext {
-  return { run, log: () => undefined };
+  return { run, log: () => undefined, progress: () => undefined };
 }
 
 describe('buildVolumeCreateJob', () => {

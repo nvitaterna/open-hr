@@ -12,7 +12,8 @@ const PROGRESS =
   /(?<action>recovery|resync|reshape|check|repair)\s*=\s*(?<percent>[\d.]+)%\s*\((?<done>\d+)\/(?<total>\d+)\)\s*finish=(?<finish>[\d.]+)min\s*speed=(?<speed>\d+)K\/sec/u;
 const WAITING = /(?<action>recovery|resync|reshape|check|repair)=(?<state>DELAYED|PENDING)/u;
 const WHITESPACE = /\s+/u;
-const SYNC_ACTIONS = ['recovery', 'resync', 'reshape', 'check', 'repair'] as const;
+/** The kinds of background work md reports. */
+export const SYNC_ACTIONS = ['recovery', 'resync', 'reshape', 'check', 'repair'] as const;
 
 function isSyncAction(value: string): value is SyncAction {
   return (SYNC_ACTIONS as readonly string[]).includes(value);

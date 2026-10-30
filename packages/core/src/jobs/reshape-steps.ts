@@ -61,14 +61,17 @@ async function arrayProblem(deps: MdDeps, path: string): Promise<string | null> 
   return null;
 }
 
-/** The chunk the array has, or is changing to, in bytes. "65536 (524288)" is mid-change. */
+/**
+ * The chunk the array has, or is changing to, in bytes. Mid-change the kernel
+ * writes the new chunk first and the old one in brackets: "524288 (65536)".
+ */
 async function targetChunk(deps: MdDeps, path: string): Promise<number | null> {
   const text = await deps.files(`/sys/block/${await deps.kernelName(path)}/md/chunk_size`);
-  const last = text?.match(NUMBERS)?.at(-1);
-  if (last === undefined) {
+  const target = text?.match(NUMBERS)?.at(0);
+  if (target === undefined) {
     return null;
   }
-  return Number(last);
+  return Number(target);
 }
 
 /** True once md shows the 512 KiB chunk, now or as the target of a change, before `deadline`. */

@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -92,6 +92,36 @@ const FAILED_JOB: JobRecord = {
   ],
 };
 
+const RUNNING_JOB: JobRecord = {
+  ...FAILED_JOB,
+  kind: 'pool-expand',
+  status: 'running',
+  finishedAt: null,
+  error: null,
+  steps: [
+    {
+      index: 0,
+      name: 'grow tier 1',
+      description: 'Add the new member to tier 1.',
+      commands: ['mdadm --grow /dev/md/ohr_tank_t1 --raid-devices=3'],
+      status: 'done',
+      startedAt: AT,
+      finishedAt: AT,
+      error: null,
+    },
+    {
+      index: 1,
+      name: 'wait for tier 1 reshape',
+      description: 'Wait until /dev/md/ohr_tank_t1 has finished its reshape',
+      commands: [],
+      status: 'running',
+      startedAt: AT,
+      finishedAt: null,
+      error: null,
+    },
+  ],
+};
+
 const LOG: LogLine[] = [{ step: 1, at: AT, line: 'ERROR: device is busy' }];
 
 describe('pool page', () => {
@@ -135,6 +165,34 @@ describe('job page', () => {
     expect(screen.getByText('ERROR: device is busy')).toBeDefined();
     emit('job.log', { jobId: JOB_ID, step: 1, line: 'retrying the device' });
     expect(await screen.findByText('retrying the device')).toBeDefined();
+  });
+
+  it('draws the running step progress and clears it when the step ends', async () => {
+    renderApp(
+      signedInRoutes({ [`GET /jobs/${JOB_ID}`]: { body: { job: RUNNING_JOB, log: [] } } }),
+      `/jobs/${JOB_ID}`,
+    );
+    expect(await screen.findByText('2. wait for tier 1 reshape')).toBeDefined();
+    emit('job.progress', {
+      jobId: JOB_ID,
+      step: 1,
+      operation: 'reshape',
+      fraction: 0.4217,
+      etaSeconds: 5400,
+    });
+    const text = 'reshape, 42.1%, about 1 h 30 min left';
+    expect(await screen.findByText(text)).toBeDefined();
+    expect(screen.getByRole('meter', { name: 'reshape progress' }).getAttribute('value')).toBe(
+      '42.1',
+    );
+    emit('job.step', {
+      jobId: JOB_ID,
+      index: 1,
+      name: 'wait for tier 1 reshape',
+      status: 'done',
+      error: null,
+    });
+    await waitFor(() => expect(screen.queryByText(text)).toBeNull());
   });
 
   it('retries a failed job only after a second click', async () => {

@@ -16,6 +16,7 @@ import {
   logLineSchema,
   stepStatusSchema,
 } from '@ohr/shared/jobs';
+import { SYNC_ACTIONS } from '@ohr/shared/parsers/mdstat';
 import { poolCreateInputSchema } from '@ohr/shared/pool-create-input';
 import { poolCreateRequestSchema } from '@ohr/shared/pool-create-request';
 import { poolExpandInputSchema } from '@ohr/shared/pool-expand-input';
@@ -235,6 +236,19 @@ export const events = {
     jobId: z.uuid(),
     step: z.number().int().nonnegative().nullable(),
     line: z.string(),
+  }),
+  /**
+   * How far a running step's md work is (decision 0011). Not stored: after a
+   * restart the step reads the kernel again and sends the next one.
+   */
+  'job.progress': z.strictObject({
+    jobId: z.uuid(),
+    step: z.number().int().nonnegative(),
+    operation: z.enum(SYNC_ACTIONS),
+    /** From 0 to 1. Null while the work is queued behind another array. */
+    fraction: z.number().min(0).max(1).nullable(),
+    /** The kernel's estimate of time left. */
+    etaSeconds: z.number().nonnegative().nullable(),
   }),
 } as const;
 
