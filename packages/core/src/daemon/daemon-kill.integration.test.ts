@@ -170,6 +170,28 @@ describe.skipIf(!isRoot)('ohr-core killed during a reshape', () => {
     return await rpc.call('jobs.get', { id: jobId });
   }
 
+  /** Every step's status, read from the database. */
+  function storedSteps(): string[] {
+    const store = JobStore.open(dir('ohr.db'));
+    try {
+      return (store.getJob(jobId)?.steps ?? []).map((step) => `${step.name}: ${step.status}`);
+    } finally {
+      store.close();
+    }
+  }
+
+  /** What mdadm's grow --continue service logged, on systems that start it at assembly. */
+  async function journal(): Promise<string[]> {
+    const result = await runCommand('journalctl', [
+      ...['--no-pager', '-n', '15', '-o', 'cat'],
+      ...['-u', 'mdadm-grow-continue@*'],
+    ]);
+    if (result.kind !== 'exited') {
+      return [result.kind];
+    }
+    return result.stdout.split('\n');
+  }
+
   /** The job's last log lines, read from the database rather than over the socket. */
   function storedLog(): string[] {
     const store = JobStore.open(dir('ohr.db'));
@@ -364,6 +386,14 @@ describe.skipIf(!isRoot)('ohr-core killed during a reshape', () => {
       array: Number((await runChecked(runCommand, 'blockdev', ['--getsize64', tier1])).trim()),
       volume: await runChecked(runCommand, 'pvs', ['--units', 'b', '-o', 'pv_name,pv_size', tier1]),
       log: storedLog(),
+      steps: storedSteps(),
+      md: await Promise.all(
+        ['array_state', 'sync_action', 'reshape_position', 'sync_max', 'raid_disks'].map(
+          async (file) => `${file}=${await sysfs(tier1, file)}`,
+        ),
+      ),
+      core: ((await readTextFile(dir('core.log'))) ?? '').split('\n').slice(-15),
+      journal: await journal(),
     };
     expect(sizes).toEqual({ ...sizes, group: input.target.usableBytes });
     await mountVolume(runCommand, {
