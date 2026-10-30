@@ -22,6 +22,11 @@ import {
   recheckVolumeCreate,
   volumeSizeBytes,
 } from '../jobs/volume-create-preview.ts';
+import {
+  grownSizeBytes,
+  previewVolumeGrow,
+  recheckVolumeGrow,
+} from '../jobs/volume-grow-preview.ts';
 import { SystemStateError } from '../system-state.ts';
 import type { JobRunner } from './job-runner.ts';
 import type { CachedState, StateCache } from './state-cache.ts';
@@ -74,6 +79,7 @@ function newDrivePaths(job: Pick<JobRecord, 'kind' | 'input'>): string[] {
     case 'drive-replace':
       return driveReplaceInputSchema.parse(job.input).newDrives.map((drive) => drive.path);
     case 'volume-create':
+    case 'volume-grow':
       return [];
     default:
       throw new Error(`Unhandled job kind: ${String(job.kind satisfies never)}`);
@@ -99,6 +105,8 @@ function recheck(submission: JobSubmission, snapshot: SystemSnapshot): string[] 
       return recheckDriveReplace(submission.input, snapshot, snapshot.drives);
     case 'volume-create':
       return recheckVolumeCreate(submission.input, snapshot);
+    case 'volume-grow':
+      return recheckVolumeGrow(submission.input, snapshot);
     default:
       throw new Error(`Unhandled job kind: ${String(submission satisfies never)}`);
   }
@@ -177,6 +185,17 @@ export function createHandlers(context: HandlerContext): Handlers {
       return {
         input,
         sizeBytes: volumeSizeBytes(input, state.snapshot),
+        steps: stepPreviews(definition),
+        stateHash: state.stateHash,
+      };
+    },
+    'volumes.previewGrow': async (request) => {
+      const state = await reading(context.state.refresh());
+      const input = unwrap(previewVolumeGrow(request, state.snapshot));
+      const definition = jobDefinition({ kind: 'volume-grow', input }, context.jobDeps);
+      return {
+        input,
+        sizeBytes: grownSizeBytes(input, state.snapshot),
         steps: stepPreviews(definition),
         stateHash: state.stateHash,
       };

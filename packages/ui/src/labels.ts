@@ -20,6 +20,7 @@ export const JOB_KIND_LABELS: Record<JobKind, string> = {
   'volume-create': 'Create volume',
   'pool-expand': 'Grow pool',
   'drive-replace': 'Replace drive',
+  'volume-grow': 'Grow volume',
 };
 
 /** A date and time in the browser's locale. */

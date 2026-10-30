@@ -9,12 +9,14 @@ import type { JobRecord } from '@ohr/shared/jobs';
 import { poolCreateInputSchema } from '@ohr/shared/pool-create-input';
 import { poolExpandInputSchema } from '@ohr/shared/pool-expand-input';
 import { volumeCreateInputSchema } from '@ohr/shared/volume-create-input';
+import { volumeGrowInputSchema } from '@ohr/shared/volume-grow-input';
 
 import { buildDriveReplaceJob } from './drive-replace.ts';
 import type { JobDefinition } from './engine.ts';
 import { buildPoolCreateJob, type PoolCreateDeps } from './pool-create.ts';
 import { buildPoolExpandJob, type PoolExpandDeps } from './pool-expand.ts';
 import { buildVolumeCreateJob, type VolumeCreateDeps } from './volume-create.ts';
+import { buildVolumeGrowJob, type VolumeGrowDeps } from './volume-grow.ts';
 
 /** Overrides for the job builders. Tests point them at temporary directories. */
 export interface JobDeps {
@@ -22,6 +24,7 @@ export interface JobDeps {
   readonly volumeCreate?: VolumeCreateDeps;
   /** Also used by drive-replace, which changes a pool the same way. */
   readonly poolExpand?: PoolExpandDeps;
+  readonly volumeGrow?: VolumeGrowDeps;
 }
 
 export function jobDefinition(
@@ -37,6 +40,8 @@ export function jobDefinition(
       return buildPoolExpandJob(poolExpandInputSchema.parse(job.input), deps.poolExpand);
     case 'drive-replace':
       return buildDriveReplaceJob(driveReplaceInputSchema.parse(job.input), deps.poolExpand);
+    case 'volume-grow':
+      return buildVolumeGrowJob(volumeGrowInputSchema.parse(job.input), deps.volumeGrow);
     default:
       throw new Error(`Unhandled job kind: ${String(job.kind satisfies never)}`);
   }

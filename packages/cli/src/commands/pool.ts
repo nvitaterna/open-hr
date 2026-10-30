@@ -1,12 +1,13 @@
 import { parseArgs } from 'node:util';
 
-import type { Result } from '@ohr/rpc/contract';
+import type { Params, Result } from '@ohr/rpc/contract';
 import { RpcError } from '@ohr/rpc/rpc-error';
 import type { Redundancy } from '@ohr/shared/constants';
 import { isValidPoolId } from '@ohr/shared/naming';
 import type { PoolCreateInput } from '@ohr/shared/pool-create-input';
 import type { PoolExpandInput } from '@ohr/shared/pool-expand-input';
 import { formatSize } from '@ohr/shared/sizes';
+import { isValidVolumeName } from '@ohr/shared/volume-name';
 
 import { EXIT_FAILURE, type Io, UsageError } from '../io.ts';
 import { confirmed, followJob, printRefusal, printSteps, WIPE_HINT_TRIGGER } from '../jobs.ts';
@@ -19,6 +20,8 @@ interface ExpandOptions {
   readonly wipe: boolean;
   readonly yes: boolean;
   readonly devices: readonly string[];
+  /** A volume to grow into the new space, or null. */
+  readonly growVolume: string | null;
 }
 
 interface CreateOptions {
@@ -71,11 +74,15 @@ function parseExpandOptions(args: readonly string[], withDevices: boolean): Expa
     options: {
       wipe: { type: 'boolean', default: false },
       yes: { type: 'boolean', default: false },
+      grow: { type: 'string' },
     },
     strict: true,
     allowPositionals: true,
   });
   const [poolId, ...devices] = positionals;
+  if (values.grow !== undefined && !isValidVolumeName(values.grow)) {
+    throw new UsageError('Name the volume to grow with --grow <volume>.');
+  }
   if (poolId === undefined || !isValidPoolId(poolId)) {
     throw new UsageError('Name the pool first: 1 to 8 lowercase letters or digits.');
   }
@@ -85,7 +92,13 @@ function parseExpandOptions(args: readonly string[], withDevices: boolean): Expa
   if (!withDevices && (devices.length > 0 || values.wipe)) {
     throw new UsageError('ohr pool expand takes only the pool. Add drives with ohr pool add.');
   }
-  return { poolId, wipe: values.wipe, yes: values.yes, devices };
+  return {
+    poolId,
+    wipe: values.wipe,
+    yes: values.yes,
+    devices,
+    growVolume: values.grow ?? null,
+  };
 }
 
 function printExpandPreview(
@@ -105,6 +118,9 @@ function printExpandPreview(
       `This erases everything on ${input.newDrives.map((drive) => drive.path).join(', ')}.`,
     );
   }
+  if (input.growVolume !== null && input.growVolume !== undefined) {
+    io.stdout(`Volume ${input.growVolume.name} then grows into all the new space, online.`);
+  }
   io.stdout(
     'Reshaping keeps the pool and its volumes online, but can take hours or days on large drives.',
   );
@@ -115,11 +131,15 @@ async function expandPool(args: readonly string[], io: Io, withDevices: boolean)
   const core = await io.core();
   let preview: Result<'pools.previewExpand'>;
   try {
-    preview = await core.call('pools.previewExpand', {
+    const request: Params<'pools.previewExpand'> = {
       poolId: options.poolId,
       devices: [...options.devices],
       wipe: options.wipe,
-    });
+    };
+    if (options.growVolume !== null) {
+      request.growVolume = options.growVolume;
+    }
+    preview = await core.call('pools.previewExpand', request);
   } catch (error) {
     if (error instanceof RpcError && error.code === 'rejected') {
       printRefusal(io, error, options.wipe);
@@ -202,8 +222,8 @@ async function createPool(args: readonly string[], io: Io): Promise<number> {
 }
 
 export const POOL_USAGE = `Usage: ohr pool create --id <pool> --redundancy <shr1|shr2> [--wipe] [--yes] <device>...
-       ohr pool add <pool> [--wipe] [--yes] <device>...
-       ohr pool expand <pool> [--yes]
+       ohr pool add <pool> [--wipe] [--grow <volume>] [--yes] <device>...
+       ohr pool expand <pool> [--grow <volume>] [--yes]
 
 Creates a pool on the given drives: partitions them, builds one md array per
 tier, and puts the arrays in one volume group. Shows the plan and the exact
@@ -224,7 +244,8 @@ becomes RAID5. pool expand does the same with the space the pool's drives
 already have, for example after a larger drive replaced a smaller one.
 Both show the capacity before and after and the exact commands first, and
 ask for the pool id. The pool stays online throughout. Volumes do not grow
-by themselves.`;
+by themselves: --grow <volume> grows one mounted volume into all the new
+space at the end, or grow one later with ohr volume grow.`;
 
 export function poolCommand(args: readonly string[], io: Io): Promise<number> {
   const [subcommand, ...rest] = args;

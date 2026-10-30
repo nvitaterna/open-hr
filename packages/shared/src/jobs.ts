@@ -8,7 +8,13 @@ import { z } from 'zod';
 
 const finishedStatuses: ReadonlySet<string> = new Set(['done', 'failed']);
 
-export const JOB_KINDS = ['pool-create', 'volume-create', 'pool-expand', 'drive-replace'] as const;
+export const JOB_KINDS = [
+  'pool-create',
+  'volume-create',
+  'pool-expand',
+  'drive-replace',
+  'volume-grow',
+] as const;
 export const JOB_STATUSES = ['pending', 'running', 'done', 'failed'] as const;
 export const STEP_STATUSES = ['pending', 'running', 'done', 'skipped', 'failed'] as const;
 

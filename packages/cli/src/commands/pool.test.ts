@@ -160,6 +160,18 @@ describe('ohr pool add and ohr pool expand', () => {
     expect(result.stderr).toContain('Cancelled. Nothing was changed.');
   });
 
+  it('grows a named volume at the end when asked, and checks the name', async () => {
+    expect((await runCli(['pool', 'add', 'p1', '--grow', 'Data', '/dev/sdd'])).code).toBe(2);
+    const result = await runCli(
+      ['pool', 'add', 'p1', '--grow', 'data', '/dev/sdd'],
+      exampleMachineWithNewDrive(),
+      exampleFiles(),
+      { labels: exampleLabels(), answer: 'nope' },
+    );
+    expect(result.stdout).toContain('Volume data then grows into all the new space, online.');
+    expect(result.stdout).toContain('lvextend --extents +100%FREE /dev/ohr-p1/data');
+  });
+
   it('says when a pool has no space to use', async () => {
     const result = await runCli(['pool', 'expand', 'p1'], exampleMachine(), exampleFiles(), {
       labels: exampleLabels(),

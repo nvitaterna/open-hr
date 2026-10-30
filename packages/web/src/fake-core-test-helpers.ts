@@ -116,6 +116,8 @@ export function fakeHandlers(received: Received[]): Handlers {
           '/dev/sdb holds a filesystem. Choose wipe to erase it.',
         ]),
       ),
+    'volumes.previewGrow': () =>
+      Promise.reject(new RpcError('rejected', 'The volume cannot grow.', ['Not here.'])),
     'drives.previewReplace': () =>
       Promise.reject(new RpcError('rejected', 'The drive cannot be replaced.', ['Not here.'])),
     'pools.previewExpand': () =>
