@@ -3,11 +3,13 @@
 import { RpcError } from '@ohr/rpc/rpc-error';
 import type { Handlers } from '@ohr/rpc/server';
 import { poolCreateInputSchema } from '@ohr/shared/pool-create-input';
+import { poolExpandInputSchema } from '@ohr/shared/pool-expand-input';
 import { deriveDrives, derivePools } from '@ohr/shared/pool-view';
 
 import { type JobDeps, jobDefinition } from '../jobs/definitions.ts';
 import { type JobDefinition, previewJob } from '../jobs/engine.ts';
 import { previewPoolCreate, recheckPoolCreate } from '../jobs/pool-create-preview.ts';
+import { previewPoolExpand, recheckPoolExpand } from '../jobs/pool-expand-preview.ts';
 import type { PreviewResult } from '../jobs/preview-result.ts';
 import type { JobStore } from '../jobs/store.ts';
 import {
@@ -55,7 +57,7 @@ function refuseIf(reasons: readonly string[]): void {
   }
 }
 
-/** Devices that unfinished pool-create jobs are about to write to. */
+/** Drives that unfinished pool-create and pool-expand jobs are about to add to a pool. */
 function busyDevices(store: JobStore): Set<string> {
   const busy = new Set<string>();
   for (const job of store.unfinishedJobs()) {
@@ -63,9 +65,21 @@ function busyDevices(store: JobStore): Set<string> {
       for (const drive of poolCreateInputSchema.parse(job.input).drives) {
         busy.add(drive.path);
       }
+    } else if (job.kind === 'pool-expand') {
+      for (const drive of poolExpandInputSchema.parse(job.input).newDrives) {
+        busy.add(drive.path);
+      }
     }
   }
   return busy;
+}
+
+/** One reason per drive that another unfinished job is about to use. */
+function busyReasons(store: JobStore, paths: readonly string[]): string[] {
+  const busy = busyDevices(store);
+  return paths
+    .filter((path) => busy.has(path))
+    .map((path) => `${path} is in use by another job that has not finished.`);
 }
 
 export interface HandlerContext {
@@ -122,6 +136,12 @@ export function createHandlers(context: HandlerContext): Handlers {
       const definition = jobDefinition({ kind: 'pool-create', input }, context.jobDeps);
       return { input, steps: stepPreviews(definition), stateHash: state.stateHash };
     },
+    'pools.previewExpand': async (request) => {
+      const state = await reading(context.state.refresh());
+      const input = unwrap(previewPoolExpand(request, state.snapshot, state.snapshot.drives));
+      const definition = jobDefinition({ kind: 'pool-expand', input }, context.jobDeps);
+      return { input, steps: stepPreviews(definition), stateHash: state.stateHash };
+    },
     'volumes.previewCreate': async (request) => {
       const state = await reading(context.state.refresh());
       const input = unwrap(previewVolumeCreate(request, state.snapshot));
@@ -145,11 +165,19 @@ export function createHandlers(context: HandlerContext): Handlers {
         }
         if (submission.kind === 'pool-create') {
           refuseIf(recheckPoolCreate(submission.input, state.snapshot, state.snapshot.drives));
-          const busy = busyDevices(context.store);
           refuseIf(
-            submission.input.drives
-              .filter((drive) => busy.has(drive.path))
-              .map((drive) => `${drive.path} is in use by another job that has not finished.`),
+            busyReasons(
+              context.store,
+              submission.input.drives.map((drive) => drive.path),
+            ),
+          );
+        } else if (submission.kind === 'pool-expand') {
+          refuseIf(recheckPoolExpand(submission.input, state.snapshot, state.snapshot.drives));
+          refuseIf(
+            busyReasons(
+              context.store,
+              submission.input.newDrives.map((drive) => drive.path),
+            ),
           );
         } else {
           refuseIf(recheckVolumeCreate(submission.input, state.snapshot));

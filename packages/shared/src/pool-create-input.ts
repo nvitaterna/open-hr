@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { isValidPoolId } from './naming.ts';
 import type { Layout } from './planner.ts';
 
-const plannedPartitionSchema = z.object({
+export const plannedPartitionSchema = z.object({
   number: z.number().int().positive(),
   role: z.enum(['label', 'tier']),
   tier: z.number().int().positive().nullable(),

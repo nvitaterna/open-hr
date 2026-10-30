@@ -102,7 +102,7 @@ export interface WaitForSyncRequest {
    */
   readonly untilInSync?: boolean;
   readonly onProgress?: (progress: SyncProgress) => void;
-  readonly intervalMs?: number;
+  readonly intervalMs?: number | undefined;
   /** Stops the wait, for example when the daemon shuts down. The work itself carries on. */
   readonly signal?: AbortSignal;
   /** Replaces the pause between reads, for tests. */

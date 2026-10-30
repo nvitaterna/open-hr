@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { emptyDrivesMachine, exampleMachine, runCli } from '../cli-test-helpers.ts';
+import {
+  emptyDrivesMachine,
+  exampleFiles,
+  exampleLabels,
+  exampleMachine,
+  exampleMachineWithNewDrive,
+  runCli,
+} from '../cli-test-helpers.ts';
 
 describe('ohr pool create', () => {
   it('needs an id, a redundancy level, and devices', async () => {
@@ -112,5 +119,52 @@ describe('ohr pool create', () => {
     const allowed = await runCli(args, machine, new Map(), { answer: 'no', allowLoop: true });
     expect(allowed.stdout).toContain('1. partition /dev/loop7');
     expect(allowed.stderr).toBe('Cancelled. Nothing was changed.');
+  });
+});
+
+describe('ohr pool add and ohr pool expand', () => {
+  it('needs a valid pool, drives to add, and no drives for expand', async () => {
+    expect((await runCli(['pool', 'add'])).code).toBe(2);
+    expect((await runCli(['pool', 'add', 'P1', '/dev/sdd'])).code).toBe(2);
+    expect((await runCli(['pool', 'add', 'p1'])).code).toBe(2);
+    expect((await runCli(['pool', 'expand', 'p1', '/dev/sdd'])).code).toBe(2);
+    expect((await runCli(['pool', 'expand', 'p1', '--wipe'])).code).toBe(2);
+  });
+
+  it("shows core's reasons when it refuses", async () => {
+    const result = await runCli(
+      ['pool', 'add', 'p1', '/dev/sda', '/dev/nvme0n1'],
+      exampleMachineWithNewDrive(),
+      exampleFiles(),
+      { labels: exampleLabels() },
+    );
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('/dev/sda is already in pool p1.');
+    expect(result.stderr).toContain('/dev/nvme0n1 holds the operating system');
+  });
+
+  it('shows the capacity before and after and the commands, then stops unless confirmed', async () => {
+    const result = await runCli(
+      ['pool', 'add', 'p1', '/dev/sdd'],
+      exampleMachineWithNewDrive(),
+      exampleFiles(),
+      { labels: exampleLabels(), answer: 'nope' },
+    );
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain('Pool p1: ');
+    expect(result.stdout).toContain(' usable now, ');
+    expect(result.stdout).toContain('mdadm --grow /dev/md/ohr_p1_t2 --level=5');
+    expect(result.stdout).toContain('mdadm --grow /dev/md/ohr_p1_t2 --chunk=512');
+    expect(result.stdout).toContain('This erases everything on /dev/sdd.');
+    expect(result.stdout).toContain('Type the pool id (p1) to continue');
+    expect(result.stderr).toContain('Cancelled. Nothing was changed.');
+  });
+
+  it('says when a pool has no space to use', async () => {
+    const result = await runCli(['pool', 'expand', 'p1'], exampleMachine(), exampleFiles(), {
+      labels: exampleLabels(),
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).not.toBe('');
   });
 });

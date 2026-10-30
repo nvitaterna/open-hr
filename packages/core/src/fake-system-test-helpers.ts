@@ -71,6 +71,34 @@ export function exampleShr1Files(): FileReader {
   return fakeFiles(new Map([['/proc/mdstat', fixture('example-shr1/mdstat.txt')]]));
 }
 
+/** The worked example's lsblk output with one more drive, empty, such as a new 8 TB sdd. */
+export function exampleLsblkWithEmptyDrive(name: string, sizeBytes: number): string {
+  const lsblk = JSON.parse(fixture('example-shr1/lsblk.json')) as { blockdevices: unknown[] };
+  lsblk.blockdevices.push({
+    name,
+    path: `/dev/${name}`,
+    pkname: null,
+    type: 'disk',
+    size: sizeBytes,
+    model: 'Fake Disk',
+    serial: `FAKE-${name}`,
+    wwn: null,
+    tran: 'sata',
+    rota: true,
+    rm: false,
+    ro: false,
+    fstype: null,
+    uuid: null,
+    partuuid: null,
+    partlabel: null,
+    parttype: null,
+    partn: null,
+    start: null,
+    mountpoints: [null],
+  });
+  return JSON.stringify(lsblk);
+}
+
 /** The example pool's UUID, as its labels carry it. */
 export const EXAMPLE_POOL_UUID = '6f1c2a4e-8b3d-4c5e-9a7f-1b2c3d4e5f60';
 
