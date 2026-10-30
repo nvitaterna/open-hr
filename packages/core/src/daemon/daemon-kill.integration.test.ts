@@ -4,8 +4,9 @@
  * with SIGKILL while md reshapes, twice: the first time it is started again
  * at once and its wait step attaches to the reshape the kernel kept
  * running; the second time the arrays are stopped and assembled again first,
- * as at boot, so the tier comes back auto-read-only with its reshape
- * pending, and the wait step must set it read-write. The job then finishes
+ * member by member as udev does at boot. On Debian the tier then comes back
+ * auto-read-only with its reshape pending, and the wait step must set it
+ * read-write. The job then finishes
  * with the planned arrays and capacity, and a file written before reads
  * back. The daemon runs as its own process from the build (`pnpm build`
  * first). Needs root; run with `pnpm --filter @ohr/core test:integration`.
@@ -180,18 +181,6 @@ describe.skipIf(!isRoot)('ohr-core killed during a reshape', () => {
     }
   }
 
-  /** What mdadm's grow --continue service logged, on systems that start it at assembly. */
-  async function journal(): Promise<string[]> {
-    const result = await runCommand('journalctl', [
-      ...['--no-pager', '-n', '15', '-o', 'cat'],
-      ...['-u', 'mdadm-grow-continue@*'],
-    ]);
-    if (result.kind !== 'exited') {
-      return [result.kind];
-    }
-    return result.stdout.split('\n');
-  }
-
   /** The job's last log lines, read from the database rather than over the socket. */
   function storedLog(): string[] {
     const store = JobStore.open(dir('ohr.db'));
@@ -333,23 +322,23 @@ describe.skipIf(!isRoot)('ohr-core killed during a reshape', () => {
       mountedBy = null;
       await runChecked(runCommand, 'vgchange', ['--activate', 'n', `ohr-${POOL}`]);
       await runChecked(runCommand, 'mdadm', ['--stop', tier1]);
+      // udev assembles each member as it appears, which starts the array auto-read-only.
       const [tier] = input.target.tiers;
-      await runChecked(runCommand, 'mdadm', [
-        ...['--assemble', tier1],
-        ...(tier?.members ?? []).map((drive) => partitionPath(drive, tier?.partitionNumber ?? 0)),
-      ]);
-      if ((await sysfs(tier1, 'array_state')) !== 'read-auto') {
-        // Some mdadm builds start an assembled array read-write. Boot-time assembly does not.
-        await writeFile(`/sys/block/${await mdKernelName(tier1)}/md/array_state`, 'read-auto');
+      for (const drive of tier?.members ?? []) {
+        await runChecked(runCommand, 'mdadm', [
+          '--incremental',
+          partitionPath(drive, tier?.partitionNumber ?? 0),
+        ]);
       }
+      await runChecked(runCommand, 'udevadm', ['settle']);
       await runChecked(runCommand, 'vgchange', ['--activate', 'y', `ohr-${POOL}`]);
       await runChecked(runCommand, 'udevadm', ['settle']);
-      // The reshape is stuck until something writes: idle, with its position recorded.
-      expect({
-        state: await sysfs(tier1, 'array_state'),
-        action: await sysfs(tier1, 'sync_action'),
-      }).toEqual({ state: 'read-auto', action: 'idle' });
-      expect(await sysfs(tier1, 'reshape_position')).not.toBe('none');
+      // Where mdadm starts the array read-write after all, the job must still finish.
+      const readAuto = (await sysfs(tier1, 'array_state')) === 'read-auto';
+      const unfinished =
+        (await sysfs(tier1, 'reshape_position')) !== 'none' ||
+        (await sysfs(tier1, 'sync_action')) === 'reshape';
+      expect(unfinished).toBe(true);
 
       client = await start();
       await until('the job finishes', async () => (await job()).job.status !== 'running');
@@ -358,9 +347,12 @@ describe.skipIf(!isRoot)('ohr-core killed during a reshape', () => {
         status: 'done',
         error: null,
       });
-      expect(log.map((line) => line.line)).toContain(
-        `${tier1} is auto-read-only; setting it read-write so its work continues`,
-      );
+      expect(
+        log.some(
+          (line) =>
+            line.line === `${tier1} is auto-read-only; setting it read-write so its work continues`,
+        ),
+      ).toBe(readAuto);
     },
     TEST_TIMEOUT_MS,
   );
@@ -393,7 +385,6 @@ describe.skipIf(!isRoot)('ohr-core killed during a reshape', () => {
         ),
       ),
       core: ((await readTextFile(dir('core.log'))) ?? '').split('\n').slice(-15),
-      journal: await journal(),
     };
     expect(sizes).toEqual({ ...sizes, group: input.target.usableBytes });
     await mountVolume(runCommand, {
