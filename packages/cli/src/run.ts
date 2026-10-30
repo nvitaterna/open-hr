@@ -1,6 +1,7 @@
 import { RpcError } from '@ohr/rpc/rpc-error';
 import { CORE_SOCKET_PATH, PROJECT_NAME, SHORT_NAME, VERSION } from '@ohr/shared/constants';
 
+import { DRIVE_USAGE, driveCommand } from './commands/drive.ts';
 import { JOB_USAGE, jobCommand } from './commands/job.ts';
 import { PLAN_USAGE, planCommand } from './commands/plan.ts';
 import { POOL_USAGE, poolCommand } from './commands/pool.ts';
@@ -25,6 +26,7 @@ Commands:
   plan       Show how a new pool would be laid out
   pool       Create or grow a pool: ${SHORT_NAME} pool create|add|expand
   volume     Create a volume in a pool: ${SHORT_NAME} volume create
+  drive      Replace a drive of a pool: ${SHORT_NAME} drive replace
   job        List, show, and retry jobs: ${SHORT_NAME} job list
   version    Print the version
   help       Show this message, or help for a command: ${SHORT_NAME} help plan
@@ -37,6 +39,7 @@ const COMMANDS: ReadonlyMap<string, { usage: string; handler: typeof statusComma
   ['plan', { usage: PLAN_USAGE, handler: planCommand }],
   ['pool', { usage: POOL_USAGE, handler: poolCommand }],
   ['volume', { usage: VOLUME_USAGE, handler: volumeCommand }],
+  ['drive', { usage: DRIVE_USAGE, handler: driveCommand }],
   ['job', { usage: JOB_USAGE, handler: jobCommand }],
 ]);
 

@@ -4,11 +4,13 @@
  * restart.
  */
 
+import { driveReplaceInputSchema } from '@ohr/shared/drive-replace-input';
 import type { JobRecord } from '@ohr/shared/jobs';
 import { poolCreateInputSchema } from '@ohr/shared/pool-create-input';
 import { poolExpandInputSchema } from '@ohr/shared/pool-expand-input';
 import { volumeCreateInputSchema } from '@ohr/shared/volume-create-input';
 
+import { buildDriveReplaceJob } from './drive-replace.ts';
 import type { JobDefinition } from './engine.ts';
 import { buildPoolCreateJob, type PoolCreateDeps } from './pool-create.ts';
 import { buildPoolExpandJob, type PoolExpandDeps } from './pool-expand.ts';
@@ -18,6 +20,7 @@ import { buildVolumeCreateJob, type VolumeCreateDeps } from './volume-create.ts'
 export interface JobDeps {
   readonly poolCreate?: PoolCreateDeps;
   readonly volumeCreate?: VolumeCreateDeps;
+  /** Also used by drive-replace, which changes a pool the same way. */
   readonly poolExpand?: PoolExpandDeps;
 }
 
@@ -32,6 +35,8 @@ export function jobDefinition(
       return buildVolumeCreateJob(volumeCreateInputSchema.parse(job.input), deps.volumeCreate);
     case 'pool-expand':
       return buildPoolExpandJob(poolExpandInputSchema.parse(job.input), deps.poolExpand);
+    case 'drive-replace':
+      return buildDriveReplaceJob(driveReplaceInputSchema.parse(job.input), deps.poolExpand);
     default:
       throw new Error(`Unhandled job kind: ${String(job.kind satisfies never)}`);
   }

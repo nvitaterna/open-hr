@@ -17,7 +17,15 @@ import { VolumeTable } from '../components/volume-table.tsx';
 import { REDUNDANCY_LABELS } from '../labels.ts';
 import { layoutTiers } from '../tier-layout.ts';
 
-const DRIVE_HEADINGS = ['Drive', 'Model', 'Serial', 'Size', 'Label'];
+const DRIVE_HEADINGS = ['Drive', 'Model', 'Serial', 'Size', 'Label', 'In the pool'];
+const MEMBERSHIP_LABELS: Record<PoolView['drives'][number]['membership'], string> = {
+  member: 'Yes',
+  removed: 'No longer in the pool',
+};
+
+function memberCount(pool: PoolView): number {
+  return pool.drives.filter((drive) => drive.membership === 'member').length;
+}
 
 function Drives({ pool }: { readonly pool: PoolView }): ReactElement {
   return (
@@ -31,6 +39,7 @@ function Drives({ pool }: { readonly pool: PoolView }): ReactElement {
           <td className={`${CELL} font-mono text-xs`}>{drive.serial ?? NONE}</td>
           <td className={`${CELL} text-right tabular-nums`}>{formatSize(drive.sizeBytes)}</td>
           <td className={CELL}>{drive.label}</td>
+          <td className={CELL}>{MEMBERSHIP_LABELS[drive.membership]}</td>
         </tr>
       ))}
     </DataTable>
@@ -72,7 +81,7 @@ function PoolDetail({ pool }: { readonly pool: PoolView }): ReactElement {
         <Panel>
           <TierDiagram
             diagram={layoutTiers(pool)}
-            title={`Pool ${pool.id}: ${pool.drives.length} drives, ${pool.tiers.length} tiers`}
+            title={`Pool ${pool.id}: ${memberCount(pool)} drives, ${pool.tiers.length} tiers`}
           />
         </Panel>
         <TierTable tiers={pool.tiers} />

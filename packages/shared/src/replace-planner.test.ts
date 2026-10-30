@@ -31,6 +31,14 @@ describe('planExpansion: replacing a drive', () => {
     ]);
   });
 
+  it('rebuilds only the tier where the drive failed and copies it live in the others', () => {
+    const plan = planOf(planExpansion(withMember(current, 'd2', 'faulty', 1), replace('d2', 8)));
+    expect(plan.actions.slice(1).map((action) => 'mode' in action && action.mode)).toEqual([
+      'rebuild',
+      'live',
+    ]);
+  });
+
   it('rebuilds the missing drive when none is named', () => {
     const plan = planOf(planExpansion(withMember(current, 'd0', 'gone'), replace(null, 4)));
     expect(plan.actions).toEqual([

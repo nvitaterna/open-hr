@@ -8,6 +8,8 @@
 
 import { z } from 'zod';
 
+import { driveReplaceInputSchema } from '@ohr/shared/drive-replace-input';
+import { driveReplaceRequestSchema } from '@ohr/shared/drive-replace-request';
 import {
   jobRecordSchema,
   jobStatusSchema,
@@ -55,6 +57,11 @@ const jobSubmissionSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('pool-expand'),
     input: poolExpandInputSchema,
+    stateHash: stateHashSchema,
+  }),
+  z.strictObject({
+    kind: z.literal('drive-replace'),
+    input: driveReplaceInputSchema,
     stateHash: stateHashSchema,
   }),
 ]);
@@ -133,6 +140,18 @@ export const methods = {
     params: poolExpandRequestSchema,
     result: z.strictObject({
       input: poolExpandInputSchema,
+      steps: z.array(stepPreviewSchema),
+      stateHash: stateHashSchema,
+    }),
+  },
+  /**
+   * Checks replacing one drive of a pool, or the one that is gone when
+   * `oldDrive` is null, and plans it tier by tier (decision 0011).
+   */
+  'drives.previewReplace': {
+    params: driveReplaceRequestSchema,
+    result: z.strictObject({
+      input: driveReplaceInputSchema,
       steps: z.array(stepPreviewSchema),
       stateHash: stateHashSchema,
     }),

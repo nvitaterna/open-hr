@@ -12,65 +12,10 @@ import { describeExpansionError, planExpansion } from '@ohr/shared/expansion-pla
 import { type PoolExpandInput, poolExpandInputSchema } from '@ohr/shared/pool-expand-input';
 import type { PoolExpandRequest } from '@ohr/shared/pool-expand-request';
 import { readPoolLayout } from '@ohr/shared/pool-layout';
-import { derivePools, type PoolView } from '@ohr/shared/pool-view';
 import type { DriveState, SystemSnapshot } from '@ohr/shared/system-snapshot';
 
+import { busyTiers, driveProblems, labelledPool } from './pool-change-checks.ts';
 import type { PreviewResult } from './preview-result.ts';
-
-function describeContents(drive: DriveState): string {
-  const { device } = drive;
-  if (drive.role === 'ohr') {
-    return 'an Open HR pool';
-  }
-  if (device.children.length > 0) {
-    return `${device.children.length} partitions`;
-  }
-  return device.fsType ?? 'a signature';
-}
-
-/** Arrays of the pool with a resync, recovery, reshape, check, or repair running or queued. */
-function busyTiers(pool: PoolView, snapshot: SystemSnapshot): string[] {
-  const found: string[] = [];
-  for (const tier of pool.tiers) {
-    const sync = snapshot.mdArrays.find((array) => array.name === tier.kernelName)?.status.sync;
-    if (sync !== null && sync !== undefined) {
-      let progress = `is waiting to ${sync.action}`;
-      if (sync.percent !== null) {
-        progress = `is running a ${sync.action}, ${Math.floor(sync.percent)}% done`;
-      }
-      found.push(`Tier ${tier.tier} ${progress}. Wait for it to finish.`);
-    }
-  }
-  return found;
-}
-
-/** What stops these drives from joining the pool, before planning. */
-function driveProblems(
-  request: PoolExpandRequest,
-  pool: PoolView,
-  candidates: readonly DriveState[],
-): string[] {
-  const found: string[] = [];
-  const known = new Map(candidates.map((drive) => [drive.device.path, drive]));
-  const inPool = new Set(pool.drives.map((drive) => drive.path));
-  const seen = new Set<string>();
-  for (const path of request.devices) {
-    const drive = known.get(path);
-    if (seen.has(path)) {
-      found.push(`${path} is listed more than once.`);
-    } else if (drive === undefined) {
-      found.push(`${path} is not a physical drive on this machine.`);
-    } else if (inPool.has(path)) {
-      found.push(`${path} is already in pool ${pool.id}.`);
-    } else if (drive.role === 'system') {
-      found.push(`${path} holds the operating system. Open HR never uses it.`);
-    } else if (drive.role !== 'empty' && !request.wipe) {
-      found.push(`${path} is not empty (${describeContents(drive)}). It has to be wiped first.`);
-    }
-    seen.add(path);
-  }
-  return found;
-}
 
 function preview(
   request: PoolExpandRequest,
@@ -78,16 +23,11 @@ function preview(
   candidates: readonly DriveState[],
   driveUuid: (index: number) => string,
 ): PreviewResult<PoolExpandInput> {
-  const pool = derivePools(snapshot).find((candidate) => candidate.id === request.poolId);
-  if (pool === undefined) {
-    return { ok: false, reasons: [`There is no pool ${request.poolId}.`] };
+  const found = labelledPool(snapshot, request.poolId);
+  if ('reasons' in found) {
+    return { ok: false, reasons: found.reasons };
   }
-  if (pool.uuid === null) {
-    return {
-      ok: false,
-      reasons: [`No label of pool ${pool.id} could be read, so new drives cannot be labelled.`],
-    };
-  }
+  const { pool, uuid } = found;
   const problems = [...busyTiers(pool, snapshot), ...driveProblems(request, pool, candidates)];
   if (problems.length > 0) {
     return { ok: false, reasons: problems };
@@ -114,7 +54,7 @@ function preview(
     ok: true,
     value: {
       poolId: pool.id,
-      poolUuid: pool.uuid,
+      poolUuid: uuid,
       redundancy: layout.layout.redundancy,
       wipe: request.wipe,
       newDrives: drives.map((device, index) => ({

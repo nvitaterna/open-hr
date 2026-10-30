@@ -47,7 +47,8 @@ export function PoolCard({ pool }: { readonly pool: PoolView }): ReactElement {
         </h3>
         <StatusBadge status={pool.health} />
         <span className="text-sm text-zinc-600 dark:text-zinc-400">
-          {redundancy} · {pool.drives.length} drives · {pool.tiers.length} tiers
+          {redundancy} · {pool.drives.filter((drive) => drive.membership === 'member').length}{' '}
+          drives · {pool.tiers.length} tiers
         </span>
       </div>
       <div className="mt-4">

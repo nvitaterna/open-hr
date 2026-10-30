@@ -27,7 +27,19 @@ interface OldDrive {
   readonly id: string | null;
   /** The tiers it was in, always tier 1 up to some tier. */
   readonly tiers: readonly CurrentTier[];
-  readonly mode: 'live' | 'rebuild';
+}
+
+/**
+ * How one tier gets its new member: copied live while the old member stays
+ * active there, or rebuilt where it failed or is gone. A drive can fail in
+ * one tier and still work in another; that tier keeps its redundancy.
+ */
+function modeFor(tier: CurrentTier, oldId: string | null): 'live' | 'rebuild' {
+  const member = tier.members.find((candidate) => candidate.drive === oldId);
+  if (member?.state === 'active') {
+    return 'live';
+  }
+  return 'rebuild';
 }
 
 /** The present drive to replace, or an error. */
@@ -40,13 +52,7 @@ function presentDrive(current: CurrentLayout, id: string): OldDrive | ExpansionE
     return { code: 'pool-degraded', tier: degraded };
   }
   const tiers = current.tiers.filter((tier) => tier.members.some((member) => member.drive === id));
-  const healthy = tiers.every((tier) =>
-    tier.members.every((member) => member.drive !== id || member.state === 'active'),
-  );
-  if (healthy) {
-    return { id, tiers, mode: 'live' };
-  }
-  return { id, tiers, mode: 'rebuild' };
+  return { id, tiers };
 }
 
 /** The one drive that is gone, from the slots its tiers are missing. */
@@ -65,7 +71,7 @@ function missingDrive(current: CurrentLayout): OldDrive | ExpansionError {
   if (broken !== undefined) {
     return { code: 'pool-degraded', tier: broken.tier };
   }
-  return { id: null, tiers, mode: 'rebuild' };
+  return { id: null, tiers };
 }
 
 function isError(value: OldDrive | ExpansionError): value is ExpansionError {
@@ -115,7 +121,7 @@ export function planReplacement(
         tier: tier.tier,
         oldDrive: old.id,
         newDrive: newDrive.id,
-        mode: old.mode,
+        mode: modeFor(tier, old.id),
       }),
     ),
   ];

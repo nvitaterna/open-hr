@@ -1,6 +1,7 @@
 /**
  * Steps that reshape a tier's array (decision 0011): convert it to RAID5,
- * add members, grow it onto them, set the chunk, and wait for md. Each
+ * add members, grow it onto them, and set the chunk. The wait for md is in
+ * wait-step.ts. Each
  * precondition reads the live array, so after a crash the step whose work
  * already happened is skipped and a wait attaches to the reshape the kernel
  * kept running.
@@ -21,14 +22,10 @@ import {
   mdadmGrowDevicesArgs,
   setChunk,
 } from '../executors/md-reshape.ts';
-import { readSyncState, type SyncProgress, waitForSync } from '../executors/md-sync.ts';
-import { formatCommand, type StepContext, type StepDefinition } from './engine.ts';
+import { readSyncState } from '../executors/md-sync.ts';
+import { formatCommand, type StepDefinition } from './engine.ts';
 import { alreadyDone, blocked, READY } from './pool-steps.ts';
 
-const PERCENT = 100;
-/** Progress is logged each time it passes another tenth. */
-const LOG_STEPS = 10;
-const SECONDS_PER_MINUTE = 60;
 /** A converted tier needs this many members before its chunk can change (decision 0011). */
 const CHUNK_CHANGE_MIN_MEMBERS = 3;
 const NUMBERS = /\d+/gu;
@@ -62,26 +59,6 @@ async function arrayProblem(deps: MdDeps, path: string): Promise<string | null> 
     return `${path} is degraded. Replace the missing drive first`;
   }
   return null;
-}
-
-/** Logs a line each time the work passes another tenth. */
-function progressLogger(log: (line: string) => void): (progress: SyncProgress) => void {
-  let logged = -1;
-  return (progress) => {
-    if (progress.fraction === null) {
-      return;
-    }
-    const tenth = Math.floor(progress.fraction * LOG_STEPS);
-    if (tenth <= logged) {
-      return;
-    }
-    logged = tenth;
-    let line = `${progress.operation} ${Math.floor(progress.fraction * PERCENT)}% done`;
-    if (progress.etaSeconds !== null) {
-      line += `, about ${Math.ceil(progress.etaSeconds / SECONDS_PER_MINUTE)} min left`;
-    }
-    log(line);
-  };
 }
 
 /** The chunk the array has, or is changing to, in bytes. "65536 (524288)" is mid-change. */
@@ -267,34 +244,6 @@ export function chunkStep(poolId: string, tier: number, deps: MdDeps): StepDefin
     async postcondition() {
       if (!(await chunkShown(deps, path, Date.now() + CHUNK_SHOWN_TIMEOUT_MS))) {
         throw new Error(`${path} is not changing to the 512 KiB chunk`);
-      }
-    },
-  };
-}
-
-export function waitStep(
-  poolId: string,
-  wait: { readonly tier: number; readonly what: string },
-  deps: MdDeps,
-): StepDefinition {
-  const path = mdArrayPath(poolId, wait.tier);
-  return {
-    name: `wait for tier ${wait.tier} ${wait.what}`,
-    description: `Wait until ${path} has finished its ${wait.what}`,
-    commands: [`read /proc/mdstat until ${path} is idle`],
-    precondition: () => Promise.resolve(READY),
-    async action({ log }: StepContext) {
-      await waitForSync({
-        files: deps.files,
-        array: await deps.kernelName(path),
-        intervalMs: deps.pollIntervalMs,
-        onProgress: progressLogger(log),
-      });
-    },
-    async postcondition() {
-      const state = await readSyncState(deps.files, await deps.kernelName(path));
-      if (state.kind === 'busy') {
-        throw new Error(`${path} is still running a ${state.progress.operation}`);
       }
     },
   };

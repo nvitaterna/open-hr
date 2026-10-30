@@ -9,12 +9,10 @@ import type { PoolExpandInput } from '@ohr/shared/pool-expand-input';
 import { formatSize } from '@ohr/shared/sizes';
 
 import { EXIT_FAILURE, type Io, UsageError } from '../io.ts';
-import { confirmed, followJob, printSteps } from '../jobs.ts';
+import { confirmed, followJob, printRefusal, printSteps, WIPE_HINT_TRIGGER } from '../jobs.ts';
 import { printLayout } from './plan.ts';
 
 const REDUNDANCY_LEVELS: readonly Redundancy[] = ['shr1', 'shr2'];
-/** Part of core's reason for a drive that holds something. */
-const WIPE_HINT_TRIGGER = 'wiped first';
 
 interface ExpandOptions {
   readonly poolId: string;
@@ -88,16 +86,6 @@ function parseExpandOptions(args: readonly string[], withDevices: boolean): Expa
     throw new UsageError('ohr pool expand takes only the pool. Add drives with ohr pool add.');
   }
   return { poolId, wipe: values.wipe, yes: values.yes, devices };
-}
-
-/** Reasons from core, with a hint when a drive only needs --wipe. */
-function printRefusal(io: Io, error: RpcError, wipe: boolean): void {
-  for (const reason of error.reasons) {
-    io.stderr(reason);
-  }
-  if (!wipe && error.reasons.some((reason) => reason.includes(WIPE_HINT_TRIGGER))) {
-    io.stderr('Pass --wipe to erase drives that hold something.');
-  }
 }
 
 function printExpandPreview(

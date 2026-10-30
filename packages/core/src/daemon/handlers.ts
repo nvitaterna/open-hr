@@ -1,12 +1,17 @@
 /** What core answers for each RPC method (decision 0007). */
 
+import type { ParsedParams } from '@ohr/rpc/contract';
 import { RpcError } from '@ohr/rpc/rpc-error';
 import type { Handlers } from '@ohr/rpc/server';
+import { driveReplaceInputSchema } from '@ohr/shared/drive-replace-input';
+import type { JobRecord } from '@ohr/shared/jobs';
 import { poolCreateInputSchema } from '@ohr/shared/pool-create-input';
 import { poolExpandInputSchema } from '@ohr/shared/pool-expand-input';
 import { deriveDrives, derivePools } from '@ohr/shared/pool-view';
+import type { SystemSnapshot } from '@ohr/shared/system-snapshot';
 
 import { type JobDeps, jobDefinition } from '../jobs/definitions.ts';
+import { previewDriveReplace, recheckDriveReplace } from '../jobs/drive-replace-preview.ts';
 import { type JobDefinition, previewJob } from '../jobs/engine.ts';
 import { previewPoolCreate, recheckPoolCreate } from '../jobs/pool-create-preview.ts';
 import { previewPoolExpand, recheckPoolExpand } from '../jobs/pool-expand-preview.ts';
@@ -22,6 +27,8 @@ import type { JobRunner } from './job-runner.ts';
 import type { CachedState, StateCache } from './state-cache.ts';
 
 const REFUSED = 'Open HR refused the request.';
+
+type JobSubmission = ParsedParams<'jobs.submit'>;
 const STATE_CHANGED = 'The machine changed since the preview. Preview it again.';
 
 function unwrap<T>(result: PreviewResult<T>): T {
@@ -57,29 +64,44 @@ function refuseIf(reasons: readonly string[]): void {
   }
 }
 
-/** Drives that unfinished pool-create and pool-expand jobs are about to add to a pool. */
-function busyDevices(store: JobStore): Set<string> {
-  const busy = new Set<string>();
-  for (const job of store.unfinishedJobs()) {
-    if (job.kind === 'pool-create') {
-      for (const drive of poolCreateInputSchema.parse(job.input).drives) {
-        busy.add(drive.path);
-      }
-    } else if (job.kind === 'pool-expand') {
-      for (const drive of poolExpandInputSchema.parse(job.input).newDrives) {
-        busy.add(drive.path);
-      }
-    }
+/** The drives a job is about to add to a pool. */
+function newDrivePaths(job: Pick<JobRecord, 'kind' | 'input'>): string[] {
+  switch (job.kind) {
+    case 'pool-create':
+      return poolCreateInputSchema.parse(job.input).drives.map((drive) => drive.path);
+    case 'pool-expand':
+      return poolExpandInputSchema.parse(job.input).newDrives.map((drive) => drive.path);
+    case 'drive-replace':
+      return driveReplaceInputSchema.parse(job.input).newDrives.map((drive) => drive.path);
+    case 'volume-create':
+      return [];
+    default:
+      throw new Error(`Unhandled job kind: ${String(job.kind satisfies never)}`);
   }
-  return busy;
 }
 
-/** One reason per drive that another unfinished job is about to use. */
-function busyReasons(store: JobStore, paths: readonly string[]): string[] {
-  const busy = busyDevices(store);
-  return paths
+/** One reason per new drive of `job` that another unfinished job is about to use. */
+function busyReasons(store: JobStore, job: Pick<JobRecord, 'kind' | 'input'>): string[] {
+  const busy = new Set(store.unfinishedJobs().flatMap(newDrivePaths));
+  return newDrivePaths(job)
     .filter((path) => busy.has(path))
     .map((path) => `${path} is in use by another job that has not finished.`);
+}
+
+/** The checks a submitted input must pass against the machine as it is now. */
+function recheck(submission: JobSubmission, snapshot: SystemSnapshot): string[] {
+  switch (submission.kind) {
+    case 'pool-create':
+      return recheckPoolCreate(submission.input, snapshot, snapshot.drives);
+    case 'pool-expand':
+      return recheckPoolExpand(submission.input, snapshot, snapshot.drives);
+    case 'drive-replace':
+      return recheckDriveReplace(submission.input, snapshot, snapshot.drives);
+    case 'volume-create':
+      return recheckVolumeCreate(submission.input, snapshot);
+    default:
+      throw new Error(`Unhandled job kind: ${String(submission satisfies never)}`);
+  }
 }
 
 export interface HandlerContext {
@@ -142,6 +164,12 @@ export function createHandlers(context: HandlerContext): Handlers {
       const definition = jobDefinition({ kind: 'pool-expand', input }, context.jobDeps);
       return { input, steps: stepPreviews(definition), stateHash: state.stateHash };
     },
+    'drives.previewReplace': async (request) => {
+      const state = await reading(context.state.refresh());
+      const input = unwrap(previewDriveReplace(request, state.snapshot, state.snapshot.drives));
+      const definition = jobDefinition({ kind: 'drive-replace', input }, context.jobDeps);
+      return { input, steps: stepPreviews(definition), stateHash: state.stateHash };
+    },
     'volumes.previewCreate': async (request) => {
       const state = await reading(context.state.refresh());
       const input = unwrap(previewVolumeCreate(request, state.snapshot));
@@ -163,25 +191,8 @@ export function createHandlers(context: HandlerContext): Handlers {
         if (context.store.unfinishedJobs().some((job) => job.poolId === poolId)) {
           throw new RpcError('conflict', `Pool ${poolId} already has a job that has not finished.`);
         }
-        if (submission.kind === 'pool-create') {
-          refuseIf(recheckPoolCreate(submission.input, state.snapshot, state.snapshot.drives));
-          refuseIf(
-            busyReasons(
-              context.store,
-              submission.input.drives.map((drive) => drive.path),
-            ),
-          );
-        } else if (submission.kind === 'pool-expand') {
-          refuseIf(recheckPoolExpand(submission.input, state.snapshot, state.snapshot.drives));
-          refuseIf(
-            busyReasons(
-              context.store,
-              submission.input.newDrives.map((drive) => drive.path),
-            ),
-          );
-        } else {
-          refuseIf(recheckVolumeCreate(submission.input, state.snapshot));
-        }
+        refuseIf(recheck(submission, state.snapshot));
+        refuseIf(busyReasons(context.store, submission));
         const definition = jobDefinition(submission, context.jobDeps);
         // Submissions are serialized and the pool was checked above, so the store's own
         // one-job-per-pool index cannot refuse this one.
