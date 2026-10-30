@@ -1,6 +1,6 @@
 {
   "name": "@ohr/rpc",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "RPC between ohr-core and its clients over a unix socket: contract, framing, client, server.",
   "license": "MIT",
