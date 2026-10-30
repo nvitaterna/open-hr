@@ -17,14 +17,14 @@ export const plannedPartitionSchema = z.object({
   sizeBytes: z.number().int().positive(),
 });
 
-const plannedDriveSchema = z.object({
+export const plannedDriveSchema = z.object({
   id: z.string().min(1),
   sizeBytes: z.number().int().positive(),
   partitions: z.array(plannedPartitionSchema),
   unusedBytes: z.number().int().nonnegative(),
 });
 
-const plannedTierSchema = z.object({
+export const plannedTierSchema = z.object({
   tier: z.number().int().positive(),
   partitionNumber: z.number().int().positive(),
   level: z.enum(['raid1', 'raid5', 'raid6']),

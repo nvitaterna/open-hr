@@ -211,10 +211,48 @@ function poolHealth(tiers: readonly TierView[]): PoolHealth {
   return 'healthy';
 }
 
+/**
+ * Drives whose tier partitions are in none of the pool's running arrays,
+ * such as the old drive after a replace. Their partitions and label still
+ * name the pool, but they hold no data of it (decision 0011). A drive whose
+ * arrays are not running is not counted: it may be a member nobody started.
+ */
+function removedDrives(
+  snapshot: SystemSnapshot,
+  poolId: string,
+  found: readonly FoundPartition[],
+): Set<string> {
+  const removed = new Set<string>();
+  const byDrive = new Map<string, FoundPartition[]>();
+  for (const item of found) {
+    if (item.role.kind === 'tier') {
+      byDrive.set(item.drive.device.path, [...(byDrive.get(item.drive.device.path) ?? []), item]);
+    }
+  }
+  for (const [path, items] of byDrive) {
+    const outside = items.every((item) => {
+      const { role } = item;
+      if (role.kind !== 'tier') {
+        return false;
+      }
+      const tierItems = found.filter(
+        (other) => other.role.kind === 'tier' && other.role.tier === role.tier,
+      );
+      const array = findArray(snapshot, poolId, role.tier, tierItems);
+      return array?.status.active === true && memberState(array, item.partition) === 'missing';
+    });
+    if (outside) {
+      removed.add(path);
+    }
+  }
+  return removed;
+}
+
 function poolDrive(
   items: readonly FoundPartition[],
   readings: ReadonlyMap<string, LabelReading>,
   warnings: string[],
+  removed: boolean,
 ): PoolDriveView {
   const [first] = items;
   if (first === undefined) {
@@ -222,9 +260,13 @@ function poolDrive(
   }
   const { device } = first.drive;
   const labelPartition = items.find((item) => item.role.kind === 'label')?.partition;
+  let membership: DriveMembership = 'member';
+  if (removed) {
+    membership = 'removed';
+  }
   if (labelPartition === undefined) {
     warnings.push(`${device.path} has no label partition.`);
-    return driveSummary(device, null, 'missing');
+    return driveSummary(device, { driveUuid: null, label: 'missing', membership });
   }
   const reading = readings.get(labelPartition.path);
   if (reading?.kind === 'invalid' || reading?.kind === 'unreadable') {
@@ -235,23 +277,25 @@ function poolDrive(
     warnings.push(`The label on ${labelPartition.path} is from a newer Open HR.`);
   }
   if (reading?.kind === 'ok') {
-    return driveSummary(device, reading.descriptor.driveUuid, 'ok');
+    return driveSummary(device, {
+      driveUuid: reading.descriptor.driveUuid,
+      label: 'ok',
+      membership,
+    });
   }
-  return driveSummary(device, null, labelStatus(reading));
+  return driveSummary(device, { driveUuid: null, label: labelStatus(reading), membership });
 }
 
 function driveSummary(
   device: BlockDevice,
-  driveUuid: string | null,
-  label: LabelStatus,
+  state: Pick<PoolDriveView, 'driveUuid' | 'label' | 'membership'>,
 ): PoolDriveView {
   return {
     path: device.path,
     model: device.model,
     serial: device.serial,
     sizeBytes: device.sizeBytes,
-    driveUuid,
-    label,
+    ...state,
   };
 }
 
@@ -266,7 +310,10 @@ function poolView(
   for (const item of found) {
     byDrive.set(item.drive.device.path, [...(byDrive.get(item.drive.device.path) ?? []), item]);
   }
-  const drives = [...byDrive.values()].map((items) => poolDrive(items, readings, warnings));
+  const removed = removedDrives(snapshot, poolId, found);
+  const drives = [...byDrive.entries()].map(([path, items]) =>
+    poolDrive(items, readings, warnings, removed.has(path)),
+  );
   const descriptors = [...readings.entries()]
     .filter(([partition]) => found.some((item) => item.partition.path === partition))
     .flatMap(([, reading]) => {
@@ -279,8 +326,10 @@ function poolView(
   if (uuids.size > 1) {
     warnings.push(`The drives' labels name ${uuids.size} different pools with the id ${poolId}.`);
   }
+  // A removed drive's partitions are not members, not even missing ones.
+  const members = found.filter((item) => !removed.has(item.drive.device.path));
   const tiers = tierNumbers(snapshot, poolId, found).map((tier) =>
-    tierView(snapshot, poolId, tier, found),
+    tierView(snapshot, poolId, tier, members),
   );
   for (const tier of tiers) {
     if (tier.health === 'missing') {
@@ -321,6 +370,7 @@ export const POOL_HEALTHS = [
   'degraded',
   'unavailable',
 ] as const;
+export const DRIVE_MEMBERSHIPS = ['member', 'removed'] as const;
 export const MEMBER_STATES = ['active', 'rebuilding', 'spare', 'faulty', 'missing'] as const;
 export const LABEL_STATUSES = [
   'ok',
@@ -370,6 +420,12 @@ export const poolDriveViewSchema = z.strictObject({
   /** From the drive's label, or null when it could not be read. */
   driveUuid: z.string().nullable(),
   label: z.enum(LABEL_STATUSES),
+  /**
+   * `removed` when the drive still has the pool's partitions but is in none
+   * of its arrays, such as the old drive after a replace: "no longer in the
+   * pool". It holds none of the pool's data and does not count in capacity.
+   */
+  membership: z.enum(DRIVE_MEMBERSHIPS),
 });
 
 export const volumeViewSchema = z.strictObject({
@@ -419,6 +475,7 @@ export const driveViewSchema = z.strictObject({
 export type TierHealth = (typeof TIER_HEALTHS)[number];
 export type PoolHealth = (typeof POOL_HEALTHS)[number];
 export type MemberState = (typeof MEMBER_STATES)[number];
+export type DriveMembership = (typeof DRIVE_MEMBERSHIPS)[number];
 export type LabelStatus = (typeof LABEL_STATUSES)[number];
 export type TierView = z.infer<typeof tierViewSchema>;
 export type PoolDriveView = z.infer<typeof poolDriveViewSchema>;

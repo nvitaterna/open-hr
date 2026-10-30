@@ -44,6 +44,7 @@ function pool(drives: [string, number][], tiers: TierView[]): PoolView {
       sizeBytes,
       driveUuid: null,
       label: 'ok',
+      membership: 'member',
     })),
     tiers,
     volumes: [],

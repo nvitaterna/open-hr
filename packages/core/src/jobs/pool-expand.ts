@@ -16,7 +16,7 @@ import { type BlockDeviceIo, blockDeviceIo } from '../executors/label-partition.
 import { mdKernelName } from '../executors/md-sync.ts';
 import { partitionPath } from '../executors/partition-drive.ts';
 import { readTextFile } from '../file-reader.ts';
-import { type LabelDeps, labelStep, partitionStep } from './drive-steps.ts';
+import { type LabelDeps, newDriveSteps, targetPartitionNumber } from './drive-steps.ts';
 import type { JobDefinition, StepDefinition } from './engine.ts';
 import {
   addPartitionsStep,
@@ -24,63 +24,16 @@ import {
   resizePhysicalVolumeStep,
 } from './expand-steps.ts';
 import { arrayStep, mdadmConfStep, physicalVolumeStep } from './pool-steps.ts';
-import {
-  addMembersStep,
-  chunkStep,
-  convertStep,
-  growStep,
-  type MdDeps,
-  waitStep,
-} from './reshape-steps.ts';
-
-interface Deps extends MdDeps, LabelDeps {
-  readonly mdadmConfDir: string | undefined;
-}
-
-function partitionNumber(input: PoolExpandInput, tier: number): number {
-  const planned = input.target.tiers.find((candidate) => candidate.tier === tier);
-  if (planned === undefined) {
-    throw new Error(`Tier ${tier} is not in the target layout`);
-  }
-  return planned.partitionNumber;
-}
-
-function newDriveSteps(
-  input: PoolExpandInput,
-  action: ExpansionAction,
-  deps: Deps,
-): StepDefinition[] {
-  if (action.kind !== 'partition-drive') {
-    return [];
-  }
-  const drive = input.newDrives.find((candidate) => candidate.path === action.drive);
-  if (drive === undefined) {
-    throw new Error(`${action.drive} is partitioned but is not one of the new drives`);
-  }
-  const { poolId, wipe } = input;
-  return [
-    partitionStep({ path: drive.path, poolId, partitions: action.partitions, wipe }),
-    labelStep(
-      {
-        path: drive.path,
-        poolId,
-        poolUuid: input.poolUuid,
-        driveUuid: drive.driveUuid,
-        redundancy: input.redundancy,
-        wipe,
-      },
-      deps,
-    ),
-  ];
-}
+import { addMembersStep, chunkStep, convertStep, growStep, type MdDeps } from './reshape-steps.ts';
+import { waitStep } from './wait-step.ts';
 
 function growTierSteps(
   input: PoolExpandInput,
   action: Extract<ExpansionAction, { kind: 'grow-tier' }>,
-  deps: Deps,
+  deps: PoolChangeDeps,
 ): StepDefinition[] {
   const { poolId } = input;
-  const number = partitionNumber(input, action.tier);
+  const number = targetPartitionNumber(input, action.tier);
   const steps = [
     addMembersStep(
       poolId,
@@ -105,7 +58,7 @@ function growTierSteps(
 function actionSteps(
   input: PoolExpandInput,
   action: ExpansionAction,
-  deps: Deps,
+  deps: PoolChangeDeps,
 ): StepDefinition[] {
   const { poolId } = input;
   switch (action.kind) {
@@ -124,7 +77,7 @@ function actionSteps(
         arrayStep(poolId, {
           tier: action.tier,
           level: action.level,
-          partitionNumber: partitionNumber(input, action.tier),
+          partitionNumber: targetPartitionNumber(input, action.tier),
           members: action.members,
         }),
         physicalVolumeStep(poolId, action.tier),
@@ -157,15 +110,7 @@ export function buildPoolExpandJob(
   input: PoolExpandInput,
   deps: PoolExpandDeps = {},
 ): JobDefinition {
-  const resolved: Deps = {
-    labelIo: deps.labelIo ?? blockDeviceIo,
-    mdadmConfDir: deps.mdadmConfDir,
-    now: deps.now ?? (() => new Date().toISOString()),
-    files: deps.files ?? readTextFile,
-    kernelName: deps.kernelName ?? mdKernelName,
-    pollIntervalMs: deps.pollIntervalMs,
-    delay: deps.delay ?? ((ms) => sleep(ms)),
-  };
+  const resolved = resolvePoolChangeDeps(deps);
   const steps = input.actions.flatMap((action) => actionSteps(input, action, resolved));
   steps.push(
     mdadmConfStep(
@@ -175,4 +120,21 @@ export function buildPoolExpandJob(
     ),
   );
   return { kind: 'pool-expand', poolId: input.poolId, input, steps };
+}
+
+/** What the steps of a job that changes a pool need, with real defaults for anything not given. */
+export function resolvePoolChangeDeps(deps: PoolExpandDeps): PoolChangeDeps {
+  return {
+    labelIo: deps.labelIo ?? blockDeviceIo,
+    mdadmConfDir: deps.mdadmConfDir,
+    now: deps.now ?? (() => new Date().toISOString()),
+    files: deps.files ?? readTextFile,
+    kernelName: deps.kernelName ?? mdKernelName,
+    pollIntervalMs: deps.pollIntervalMs,
+    delay: deps.delay ?? ((ms) => sleep(ms)),
+  };
+}
+
+export interface PoolChangeDeps extends MdDeps, LabelDeps {
+  readonly mdadmConfDir: string | undefined;
 }

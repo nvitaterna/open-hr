@@ -14,8 +14,24 @@ const RETRY_FROM = /from step 2, make the filesystem/u;
 const LAID_OUT: PoolView = {
   ...POOL,
   drives: [
-    { path: '/dev/sda', model: 'A', serial: 'S1', sizeBytes: 4 * TB, driveUuid: null, label: 'ok' },
-    { path: '/dev/sdb', model: 'B', serial: 'S2', sizeBytes: 4 * TB, driveUuid: null, label: 'ok' },
+    {
+      path: '/dev/sda',
+      model: 'A',
+      serial: 'S1',
+      sizeBytes: 4 * TB,
+      driveUuid: null,
+      label: 'ok',
+      membership: 'member',
+    },
+    {
+      path: '/dev/sdb',
+      model: 'B',
+      serial: 'S2',
+      sizeBytes: 4 * TB,
+      driveUuid: null,
+      label: 'ok',
+      membership: 'member',
+    },
   ],
   tiers: [
     {

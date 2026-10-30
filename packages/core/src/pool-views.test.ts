@@ -178,6 +178,19 @@ describe('derivePools: health', () => {
     expect(pool.tiers[0]?.members[0]?.state).toBe('rebuilding');
   });
 
+  it('shows a drive that is in none of the running arrays as no longer in the pool', async () => {
+    const pool = await onlyPool((mdstat) =>
+      mdstat.replace(MD127_HEALTHY, 'md127 : active raid5 sdc2[2] sdb2[1]\n$<blocks>[3/2] [_UU]'),
+    );
+    expect(pool.drives.map((drive) => [drive.path, drive.membership])).toEqual([
+      ['/dev/sda', 'removed'],
+      ['/dev/sdb', 'member'],
+      ['/dev/sdc', 'member'],
+    ]);
+    expect(pool.tiers[0]?.members.map((member) => member.drive)).toEqual(['/dev/sdb', '/dev/sdc']);
+    expect(pool.tiers[0]?.health).toBe('degraded');
+  });
+
   it('marks the pool unavailable when a tier array is not running', async () => {
     const pool = await onlyPool((mdstat) => mdstat.replace(MD127_BLOCK, ''));
     expect(pool.health).toBe('unavailable');

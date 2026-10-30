@@ -5,6 +5,7 @@
  */
 
 import type { RpcEvent } from '@ohr/rpc/contract';
+import type { RpcError } from '@ohr/rpc/rpc-error';
 import { isFinished, type JobRecord, type JobStatus, type LogLine } from '@ohr/shared/jobs';
 
 import { type Core, EXIT_FAILURE, EXIT_OK, type Io } from './io.ts';
@@ -75,6 +76,19 @@ export interface FollowedJob {
   readonly done?: string;
   /** Starts the job, or picks up an existing one, and returns its record. */
   readonly start: (core: Core) => Promise<JobRecord>;
+}
+
+/** Part of core's reason for a drive that holds something. */
+export const WIPE_HINT_TRIGGER = 'wiped first';
+
+/** Reasons from core, with a hint when a drive only needs --wipe. */
+export function printRefusal(io: Io, error: RpcError, wipe: boolean): void {
+  for (const reason of error.reasons) {
+    io.stderr(reason);
+  }
+  if (!wipe && error.reasons.some((reason) => reason.includes(WIPE_HINT_TRIGGER))) {
+    io.stderr('Pass --wipe to erase drives that hold something.');
+  }
 }
 
 /** Prints the numbered step list with each step's commands. */

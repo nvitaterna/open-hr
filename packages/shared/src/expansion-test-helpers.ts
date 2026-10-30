@@ -65,17 +65,21 @@ export function planOf(result: ExpansionResult): ExpansionPlan {
   return result.plan;
 }
 
-/** The pool with one member of `tier` changed, such as marked faulty or gone. */
+/** The pool with one drive's members changed, such as marked faulty or gone, in every tier or one. */
 export function withMember(
   current: CurrentLayout,
   drive: string,
   state: 'faulty' | 'gone',
+  onlyTier: number | null = null,
 ): CurrentLayout {
   return {
     ...current,
     drives: current.drives.filter((candidate) => state !== 'gone' || candidate.id !== drive),
     tiers: current.tiers.map((tier) => {
-      if (!tier.members.some((member) => member.drive === drive)) {
+      if (
+        !tier.members.some((member) => member.drive === drive) ||
+        (onlyTier !== null && tier.tier !== onlyTier)
+      ) {
         return tier;
       }
       if (state === 'gone') {

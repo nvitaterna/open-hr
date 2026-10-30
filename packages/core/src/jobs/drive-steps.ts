@@ -5,9 +5,11 @@
  */
 
 import type { Redundancy } from '@ohr/shared/constants';
+import type { ExpansionAction } from '@ohr/shared/expansion-plan';
 import { labelPartitionLabel, tierPartitionLabel } from '@ohr/shared/naming';
 import { type BlockDevice, LSBLK_COLUMNS, parseLsblk } from '@ohr/shared/parsers/lsblk';
 import type { PlannedPartition } from '@ohr/shared/planner';
+import type { PoolExpandInput } from '@ohr/shared/pool-expand-input';
 import type { DriveRole } from '@ohr/shared/system-snapshot';
 
 import type { CommandRunner } from '../command-runner.ts';
@@ -159,6 +161,45 @@ export function labelStep(drive: LabelledDrive, deps: LabelDeps): StepDefinition
       }
     },
   };
+}
+
+/** The partition number a tier has in the target layout. */
+export function targetPartitionNumber(input: PoolExpandInput, tier: number): number {
+  const planned = input.target.tiers.find((candidate) => candidate.tier === tier);
+  if (planned === undefined) {
+    throw new Error(`Tier ${tier} is not in the target layout`);
+  }
+  return planned.partitionNumber;
+}
+
+/** Partition and label steps for a partition-drive action; none for other actions. */
+export function newDriveSteps(
+  input: PoolExpandInput,
+  action: ExpansionAction,
+  deps: LabelDeps,
+): StepDefinition[] {
+  if (action.kind !== 'partition-drive') {
+    return [];
+  }
+  const drive = input.newDrives.find((candidate) => candidate.path === action.drive);
+  if (drive === undefined) {
+    throw new Error(`${action.drive} is partitioned but is not one of the new drives`);
+  }
+  const { poolId, wipe } = input;
+  return [
+    partitionStep({ path: drive.path, poolId, partitions: action.partitions, wipe }),
+    labelStep(
+      {
+        path: drive.path,
+        poolId,
+        poolUuid: input.poolUuid,
+        driveUuid: drive.driveUuid,
+        redundancy: input.redundancy,
+        wipe,
+      },
+      deps,
+    ),
+  ];
 }
 
 /** A drive that joins a pool: its whole partition table is replaced with `partitions`. */
