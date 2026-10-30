@@ -24,6 +24,7 @@ function device(overrides: Partial<BlockDevice>): BlockDevice {
     partLabel: null,
     partType: null,
     partNumber: null,
+    startBytes: null,
     mountpoints: [],
     children: [],
     ...overrides,

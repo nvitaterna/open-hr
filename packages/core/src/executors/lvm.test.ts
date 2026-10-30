@@ -25,7 +25,7 @@ const ARRAY_BYTES = 1_071_644_672;
 const GROUP_BYTES = 1_069_547_520;
 
 /** What pvs prints for one new physical volume on a 1 GiB RAID1 array. */
-const PVS_REPORT = `{"report":[{"pv":[{"pv_name":"/dev/md127","vg_name":"","pv_uuid":"${PV_UUID}","pv_size":"${ARRAY_BYTES}","pv_free":"${ARRAY_BYTES}"}]}]}`;
+const PVS_REPORT = `{"report":[{"pv":[{"pv_name":"/dev/md127","vg_name":"","pv_uuid":"${PV_UUID}","pv_size":"${ARRAY_BYTES}","pv_free":"${ARRAY_BYTES}","pe_start":"1048576"}]}]}`;
 
 const VGS_REPORT = `{"report":[{"vg":[{"vg_name":"ohr-p1","vg_uuid":"3loFLx-NS7h-gjet-uHOv-DAuN-pxda-TFHB0j","vg_size":"${GROUP_BYTES}","vg_free":"${GROUP_BYTES}","pv_count":"1","lv_count":"0"}]}]}`;
 
@@ -105,11 +105,17 @@ describe('createPhysicalVolume', () => {
       uuid: PV_UUID,
       sizeBytes: ARRAY_BYTES,
       freeBytes: ARRAY_BYTES,
+      firstExtentBytes: 1_048_576,
     });
     expect(calls.map((call) => [call.command, ...call.args])).toEqual([
       ['wipefs', '--all', '--quiet', '/dev/md/ohr_p1_t1'],
       ['pvcreate', '/dev/md/ohr_p1_t1'],
-      ['pvs', ...REPORT_ARGS, 'pv_name,vg_name,pv_uuid,pv_size,pv_free', '/dev/md/ohr_p1_t1'],
+      [
+        'pvs',
+        ...REPORT_ARGS,
+        'pv_name,vg_name,pv_uuid,pv_size,pv_free,pe_start',
+        '/dev/md/ohr_p1_t1',
+      ],
     ]);
   });
 

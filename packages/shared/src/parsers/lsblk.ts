@@ -28,9 +28,20 @@ const nodeSchema = z.object({
   partlabel: textSchema,
   parttype: textSchema,
   partn: integerSchema.nullish(),
+  start: integerSchema.nullish(),
   mountpoints: z.array(z.string().nullable()).nullish(),
   children: z.array(z.unknown()).optional(),
 });
+
+/** lsblk counts partition starts in 512-byte sectors whatever the drive's sector size. */
+const SECTOR_BYTES = 512;
+
+function startBytes(sectors: number | null | undefined): number | null {
+  if (sectors === null || sectors === undefined) {
+    return null;
+  }
+  return sectors * SECTOR_BYTES;
+}
 
 const rootSchema = z.object({ blockdevices: z.array(z.unknown()) });
 
@@ -55,6 +66,7 @@ function toBlockDevice(raw: unknown): BlockDevice {
     partLabel: node.partlabel,
     partType: node.parttype,
     partNumber: node.partn ?? null,
+    startBytes: startBytes(node.start),
     mountpoints: (node.mountpoints ?? []).filter((point): point is string => point !== null),
     children: (node.children ?? []).map(toBlockDevice),
   };
@@ -80,6 +92,7 @@ export const LSBLK_COLUMNS = [
   'PARTLABEL',
   'PARTTYPE',
   'PARTN',
+  'START',
   'MOUNTPOINTS',
 ] as const;
 
@@ -105,6 +118,8 @@ export interface BlockDevice {
   readonly partLabel: string | null;
   readonly partType: string | null;
   readonly partNumber: number | null;
+  /** Where a partition starts on its drive. Null for anything that is not a partition. */
+  readonly startBytes: number | null;
   readonly mountpoints: readonly string[];
   readonly children: readonly BlockDevice[];
 }
