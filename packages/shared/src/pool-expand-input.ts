@@ -13,6 +13,7 @@ import {
   plannedPartitionSchema,
   poolCreateDriveSchema,
 } from './pool-create-input.ts';
+import { volumeGrowTargetSchema } from './volume-grow-input.ts';
 
 const levelSchema = z.enum(['raid1', 'raid5', 'raid6']);
 const tierSchema = z.number().int().positive();
@@ -66,6 +67,11 @@ export const poolExpandInputSchema = z.object({
   usableBytesBefore: z.number().int().nonnegative(),
   /** What the planner decided, in order. The job's steps follow them. */
   actions: z.array(expansionActionSchema).min(1),
+  /**
+   * A volume to grow into all free space at the end, or null. Optional so
+   * jobs stored before it existed still parse.
+   */
+  growVolume: volumeGrowTargetSchema.nullable().optional(),
 });
 
 export type PoolExpandInput = z.infer<typeof poolExpandInputSchema>;

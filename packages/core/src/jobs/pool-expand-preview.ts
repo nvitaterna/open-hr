@@ -16,6 +16,7 @@ import type { DriveState, SystemSnapshot } from '@ohr/shared/system-snapshot';
 
 import { busyTiers, driveProblems, labelledPool } from './pool-change-checks.ts';
 import type { PreviewResult } from './preview-result.ts';
+import { mountedVolume } from './volume-grow-preview.ts';
 
 function preview(
   request: PoolExpandRequest,
@@ -50,6 +51,19 @@ function preview(
   if (!plan.ok) {
     return { ok: false, reasons: [describeExpansionError(plan.error)] };
   }
+  let growVolume: PoolExpandInput['growVolume'] = null;
+  if (request.growVolume !== undefined) {
+    const volume = mountedVolume(snapshot, pool.id, request.growVolume);
+    if ('reason' in volume) {
+      return { ok: false, reasons: [volume.reason] };
+    }
+    growVolume = {
+      name: request.growVolume,
+      filesystem: volume.filesystem,
+      mountPoint: volume.mountPoint,
+      size: { kind: 'all-free' },
+    };
+  }
   return {
     ok: true,
     value: {
@@ -67,6 +81,7 @@ function preview(
       target: plan.plan.target,
       usableBytesBefore: plan.plan.usableBytesBefore,
       actions: [...plan.plan.actions],
+      growVolume,
     },
   };
 }
@@ -94,11 +109,14 @@ export function recheckPoolExpand(
   snapshot: SystemSnapshot,
   candidates: readonly DriveState[],
 ): string[] {
-  const request: PoolExpandRequest = {
+  let request: PoolExpandRequest = {
     poolId: input.poolId,
     devices: input.newDrives.map((drive) => drive.path),
     wipe: input.wipe,
   };
+  if (input.growVolume !== null && input.growVolume !== undefined) {
+    request = { ...request, growVolume: input.growVolume.name };
+  }
   const fresh = preview(
     request,
     snapshot,

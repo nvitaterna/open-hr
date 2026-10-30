@@ -25,6 +25,7 @@ import {
 } from './expand-steps.ts';
 import { arrayStep, mdadmConfStep, physicalVolumeStep } from './pool-steps.ts';
 import { addMembersStep, chunkStep, convertStep, growStep, type MdDeps } from './reshape-steps.ts';
+import { volumeGrowSteps } from './volume-grow.ts';
 import { waitStep } from './wait-step.ts';
 
 function growTierSteps(
@@ -103,6 +104,8 @@ export interface PoolExpandDeps {
   /** How often a wait step reads the array's state. The default is every 5 seconds. */
   readonly pollIntervalMs?: number;
   readonly delay?: MdDeps['delay'];
+  /** Resolves device symlinks when checking a grown volume's mount. Tests inject identity. */
+  readonly resolvePath?: (path: string) => Promise<string>;
 }
 
 /** The steps that carry out the planned change. Pure: nothing is read or written here. */
@@ -119,6 +122,9 @@ export function buildPoolExpandJob(
       resolved.mdadmConfDir,
     ),
   );
+  if (input.growVolume !== null && input.growVolume !== undefined) {
+    steps.push(...volumeGrowSteps(input.poolId, input.growVolume, deps));
+  }
   return { kind: 'pool-expand', poolId: input.poolId, input, steps };
 }
 

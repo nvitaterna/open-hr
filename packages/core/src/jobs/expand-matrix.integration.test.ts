@@ -23,6 +23,7 @@ import { lvmReportArgs, parseVgs, VG_FIELDS } from '@ohr/shared/parsers/lvm';
 import { parseMdadmDetail } from '@ohr/shared/parsers/mdadm-detail';
 import { planPool } from '@ohr/shared/planner';
 import type { PoolExpandInput } from '@ohr/shared/pool-expand-input';
+import type { PoolExpandRequest } from '@ohr/shared/pool-expand-request';
 
 import { runChecked, runCommand } from '../command-runner.ts';
 import { blockDeviceIo, readLabel } from '../executors/label-partition.ts';
@@ -48,7 +49,7 @@ const POLL_MS = 200;
 /** Reshapes of a few GiB on loop devices, twice for a converted tier. */
 const EXPAND_TIMEOUT_MS = 900_000;
 /** Steps that run again on a re-run because there is nothing to skip: they only read or are idempotent. */
-const RERUN_STEPS = /^(?:wait for |resize tier )/u;
+const RERUN_STEPS = /^(?:wait for |resize tier |grow filesystem of )/u;
 
 interface ExpandCase {
   readonly poolId: string;
@@ -59,6 +60,8 @@ interface ExpandCase {
   readonly after: readonly string[];
   /** Keep writing to the volume while the job runs. */
   readonly writes: boolean;
+  /** Grow the volume into the new space at the end of the job. */
+  readonly growVolume: boolean;
 }
 
 const CASES: readonly ExpandCase[] = [
@@ -69,6 +72,7 @@ const CASES: readonly ExpandCase[] = [
     filesystem: 'ext4',
     after: ['raid5x3'],
     writes: true,
+    growVolume: false,
   },
   {
     poolId: 'x1b',
@@ -77,6 +81,7 @@ const CASES: readonly ExpandCase[] = [
     filesystem: 'btrfs',
     after: ['raid5x4'],
     writes: false,
+    growVolume: true,
   },
   {
     poolId: 'x1c',
@@ -85,6 +90,7 @@ const CASES: readonly ExpandCase[] = [
     filesystem: 'btrfs',
     after: ['raid5x4'],
     writes: false,
+    growVolume: false,
   },
   {
     poolId: 'x1d',
@@ -93,6 +99,7 @@ const CASES: readonly ExpandCase[] = [
     filesystem: 'ext4',
     after: ['raid5x3', 'raid1x2'],
     writes: false,
+    growVolume: false,
   },
 ];
 
@@ -115,7 +122,11 @@ async function settle(path: string): Promise<void> {
   });
 }
 
-async function preview(poolId: string, devices: readonly string[]): Promise<PoolExpandInput> {
+async function preview(
+  poolId: string,
+  devices: readonly string[],
+  growVolume: string | null = null,
+): Promise<PoolExpandInput> {
   const snapshot = await readSystemState({
     run: runCommand,
     readFile: readTextFile,
@@ -123,11 +134,11 @@ async function preview(poolId: string, devices: readonly string[]): Promise<Pool
     labelIo: blockDeviceIo,
     includeLoopDevices: true,
   });
-  const result = previewPoolExpand(
-    { poolId, devices: [...devices], wipe: false },
-    snapshot,
-    snapshot.drives,
-  );
+  let request: PoolExpandRequest = { poolId, devices: [...devices], wipe: false };
+  if (growVolume !== null) {
+    request = { ...request, growVolume };
+  }
+  const result = previewPoolExpand(request, snapshot, snapshot.drives);
   if (!result.ok) {
     throw new Error(result.reasons.join(' '));
   }
@@ -248,7 +259,11 @@ describe.skipIf(!isRoot).each(CASES)('$poolId: $sizesGib GiB plus $addGib GiB', 
   it(
     'grows the pool from a preview, online',
     async () => {
-      input = await preview(testCase.poolId, added);
+      let growVolume: string | null = null;
+      if (testCase.growVolume) {
+        growVolume = VOLUME;
+      }
+      input = await preview(testCase.poolId, added, growVolume);
       expect(input.target.tiers.map((tier) => `${tier.level}x${tier.members.length}`)).toEqual(
         testCase.after,
       );
@@ -298,6 +313,8 @@ describe.skipIf(!isRoot).each(CASES)('$poolId: $sizesGib GiB plus $addGib GiB', 
       await runChecked(runCommand, 'vgs', [...lvmReportArgs(VG_FIELDS), `ohr-${testCase.poolId}`]),
     );
     expect(group?.sizeBytes).toBe(input.target.usableBytes);
+    // The volume took all the pool's space when created, so free space is left only if it was not grown.
+    expect(group?.freeBytes === 0).toBe(testCase.growVolume);
     for (const drive of input.newDrives) {
       const label = await readLabel(blockDeviceIo, partitionPath(drive.path, 1));
       expect(label).toMatchObject({

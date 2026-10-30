@@ -24,6 +24,8 @@ import { driveViewSchema, poolViewSchema } from '@ohr/shared/pool-view';
 import { systemSnapshotSchema } from '@ohr/shared/system-snapshot';
 import { volumeCreateInputSchema } from '@ohr/shared/volume-create-input';
 import { volumeCreateRequestSchema } from '@ohr/shared/volume-create-request';
+import { volumeGrowInputSchema } from '@ohr/shared/volume-grow-input';
+import { volumeGrowRequestSchema } from '@ohr/shared/volume-grow-request';
 
 const noParams = z.strictObject({});
 const stateHashSchema = z.string().min(1);
@@ -62,6 +64,11 @@ const jobSubmissionSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('drive-replace'),
     input: driveReplaceInputSchema,
+    stateHash: stateHashSchema,
+  }),
+  z.strictObject({
+    kind: z.literal('volume-grow'),
+    input: volumeGrowInputSchema,
     stateHash: stateHashSchema,
   }),
 ]);
@@ -161,6 +168,19 @@ export const methods = {
     params: volumeCreateRequestSchema,
     result: z.strictObject({
       input: volumeCreateInputSchema,
+      sizeBytes: z.number().int().nonnegative(),
+      steps: z.array(stepPreviewSchema),
+      stateHash: stateHashSchema,
+    }),
+  },
+  /**
+   * Checks growing a mounted volume and its filesystem, to all free space or
+   * by a given size (decision 0011). `sizeBytes` is what the volume will be.
+   */
+  'volumes.previewGrow': {
+    params: volumeGrowRequestSchema,
+    result: z.strictObject({
+      input: volumeGrowInputSchema,
       sizeBytes: z.number().int().nonnegative(),
       steps: z.array(stepPreviewSchema),
       stateHash: stateHashSchema,

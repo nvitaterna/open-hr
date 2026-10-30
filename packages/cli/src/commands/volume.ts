@@ -9,6 +9,7 @@ import {
 import { isValidPoolId } from '@ohr/shared/naming';
 import { alignDown, formatSize, parseSize, SizeParseError } from '@ohr/shared/sizes';
 import type { VolumeCreateRequest } from '@ohr/shared/volume-create-request';
+import type { VolumeGrowRequest } from '@ohr/shared/volume-grow-request';
 import { isValidVolumeName } from '@ohr/shared/volume-name';
 
 import { EXIT_FAILURE, type Io, UsageError } from '../io.ts';
@@ -51,6 +52,71 @@ function parseVolumeSize(value: string | undefined): number | null {
     throw new UsageError(`A volume needs at least ${formatSize(LVM_EXTENT_BYTES)}.`);
   }
   return aligned;
+}
+
+interface GrowOptions {
+  readonly poolId: string;
+  readonly name: string;
+  /** How much to add, or null for all free space. */
+  readonly addBytes: number | null;
+  readonly yes: boolean;
+}
+
+function parseGrowOptions(args: readonly string[]): GrowOptions {
+  const { values, positionals } = parseArgs({
+    args: [...args],
+    options: { yes: { type: 'boolean', default: false } },
+    strict: true,
+    allowPositionals: true,
+  });
+  const [poolId, name, size, ...extra] = positionals;
+  if (poolId === undefined || !isValidPoolId(poolId)) {
+    throw new UsageError('Name the pool first: 1 to 8 lowercase letters or digits.');
+  }
+  if (name === undefined || !isValidVolumeName(name) || extra.length > 0) {
+    throw new UsageError('Give the pool, the volume, and optionally how much to add.');
+  }
+  return { poolId, name, addBytes: parseVolumeSize(size), yes: values.yes };
+}
+
+async function growVolume(args: readonly string[], io: Io): Promise<number> {
+  const options = parseGrowOptions(args);
+  let size: VolumeGrowRequest['size'] = { kind: 'all-free' };
+  if (options.addBytes !== null) {
+    size = { kind: 'add-bytes', bytes: options.addBytes };
+  }
+  const core = await io.core();
+  const preview = await core.call('volumes.previewGrow', {
+    poolId: options.poolId,
+    name: options.name,
+    size,
+  });
+  const { input } = preview;
+  let target = formatSize(preview.sizeBytes);
+  if (input.size.kind === 'all-free') {
+    target = `${target}, all the pool's free space`;
+  }
+  io.stdout(`Volume ${input.name} in pool ${input.poolId}`);
+  io.stdout(`  Grows to: ${target}`);
+  io.stdout(`  Filesystem: ${input.filesystem}, mounted at ${input.mountPoint}, grown online`);
+  io.stdout('');
+  printSteps(io, preview.steps);
+  io.stdout('');
+  if (!(await confirmed(io, 'volume name', input.name, options.yes))) {
+    return EXIT_FAILURE;
+  }
+  return followJob(io, {
+    subject: `Volume ${input.name}`,
+    done: 'grown',
+    start: async (client) =>
+      (
+        await client.call('jobs.submit', {
+          kind: 'volume-grow',
+          input,
+          stateHash: preview.stateHash,
+        })
+      ).job,
+  });
 }
 
 function parseCreateOptions(args: readonly string[]): CreateOptions {
@@ -138,6 +204,7 @@ async function createVolume(args: readonly string[], io: Io): Promise<number> {
 }
 
 export const VOLUME_USAGE = `Usage: ohr volume create --pool <id> --name <name> --fs <btrfs|ext4> [--size <size>] [--mount <path>] [--yes]
+       ohr volume grow <pool> <volume> [<size to add>] [--yes]
 
 Creates a volume in a pool: a logical volume, a filesystem on it, and a
 systemd mount unit so it is mounted now and after every boot. Shows the
@@ -153,12 +220,19 @@ Options:
   --size         Size with a unit, such as 500GB or 2TiB, rounded down to whole
                  4 MiB extents. Without it the volume takes all free space.
   --mount        Mount point. Default ${DEFAULT_MOUNT_ROOT}/<name>.
-  --yes          Skip the confirmation.`;
+  --yes          Skip the confirmation.
+
+volume grow makes a mounted volume larger and grows its filesystem while it
+stays mounted and in use: by the size given, such as 100GB, rounded down to
+whole 4 MiB extents, or by all the pool's free space. Volumes never shrink.`;
 
 export function volumeCommand(args: readonly string[], io: Io): Promise<number> {
   const [subcommand, ...rest] = args;
   if (subcommand === 'create') {
     return createVolume(rest, io);
+  }
+  if (subcommand === 'grow') {
+    return growVolume(rest, io);
   }
   return Promise.reject(new UsageError(`Unknown volume command: ${subcommand ?? '(none)'}`));
 }

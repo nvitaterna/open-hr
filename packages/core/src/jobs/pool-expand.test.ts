@@ -136,6 +136,28 @@ describe('buildPoolExpandJob', () => {
     ]);
   });
 
+  it('grows a named volume into the new space after everything else', async () => {
+    const input = await exampleInput();
+    const job = buildPoolExpandJob(
+      {
+        ...input,
+        growVolume: {
+          name: 'data',
+          filesystem: 'btrfs',
+          mountPoint: '/mnt/ohr/data',
+          size: { kind: 'all-free' },
+        },
+      },
+      deps(sysfs()),
+    );
+    expect(job.steps.slice(-3).map((candidate) => candidate.name)).toEqual([
+      'write mdadm config',
+      'extend volume data',
+      'grow filesystem of data',
+    ]);
+    expect(job.steps.at(-2)?.commands).toEqual(['lvextend --extents +100%FREE /dev/ohr-p1/data']);
+  });
+
   it('shows the exact commands, without a backup file', async () => {
     const job = buildPoolExpandJob(await exampleInput(), deps(sysfs()));
     const commands = job.steps.flatMap((candidate) => candidate.commands);

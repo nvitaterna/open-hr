@@ -138,6 +138,17 @@ export function exampleMachineWithNewDrive(): Map<string, CommandResult> {
   return answers;
 }
 
+/** The worked example with `freeBytes` free in pool p1's volume group. */
+export function exampleMachineWithFreeSpace(freeBytes: number): Map<string, CommandResult> {
+  const answers = exampleMachine();
+  const vgs = fixture('example-shr1/vgs.json').replace(
+    '"vg_free": "0"',
+    `"vg_free": "${freeBytes}"`,
+  );
+  answers.set('vgs', ok(vgs));
+  return answers;
+}
+
 /** Labels for the worked example's pool p1, on sda1, sdb1, and sdc1. */
 export function exampleLabels(): ReadonlyMap<string, Uint8Array> {
   return new Map(

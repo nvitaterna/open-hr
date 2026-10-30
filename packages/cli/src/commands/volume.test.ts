@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   emptyDrivesMachine,
+  exampleFiles,
+  exampleMachine,
+  exampleMachineWithFreeSpace,
   poolMachine,
   runCli,
   vmFiles,
@@ -80,5 +83,37 @@ describe('ohr volume create', () => {
     );
     expect(result.stdout).toContain('Size: 998.24 MB');
     expect(result.stdout).toContain('--size 998244352b');
+  });
+});
+
+describe('ohr volume grow', () => {
+  const Gib = 1024 ** 3;
+
+  it('needs a pool and a volume, and checks the size', async () => {
+    expect((await runCli(['volume', 'grow', 'p1'])).code).toBe(2);
+    expect((await runCli(['volume', 'grow', 'p1', 'Data'])).code).toBe(2);
+    expect((await runCli(['volume', 'grow', 'p1', 'data', '1MB'])).code).toBe(2);
+    expect((await runCli(['volume', 'grow', 'p1', 'data', '1GB', 'extra'])).code).toBe(2);
+  });
+
+  it("passes on core's refusal when the pool has no free space", async () => {
+    const result = await runCli(['volume', 'grow', 'p1', 'data'], exampleMachine(), exampleFiles());
+    expect(result.code).toBe(1);
+    expect(result.stderr).toBe('Pool p1 has no free space.');
+  });
+
+  it('shows the size afterwards and the commands, then stops unless confirmed', async () => {
+    const result = await runCli(
+      ['volume', 'grow', 'p1', 'data', '4GiB'],
+      exampleMachineWithFreeSpace(10 * Gib),
+      exampleFiles(),
+      { answer: 'nope' },
+    );
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain('Volume data in pool p1');
+    expect(result.stdout).toContain('Filesystem: btrfs, mounted at /mnt/ohr/data, grown online');
+    expect(result.stdout).toContain('btrfs filesystem resize max /mnt/ohr/data');
+    expect(result.stdout).toContain('Type the volume name (data) to continue');
+    expect(result.stderr).toContain('Cancelled. Nothing was changed.');
   });
 });
