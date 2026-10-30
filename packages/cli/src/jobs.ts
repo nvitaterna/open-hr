@@ -46,22 +46,24 @@ type Outcome = JobStatus | 'detached';
 
 interface Ending {
   readonly subject: string;
+  readonly done: string;
   readonly jobId: string;
   readonly outcome: Outcome;
 }
 
-async function report(io: Io, core: Core, { subject, jobId, outcome }: Ending): Promise<number> {
+async function report(io: Io, core: Core, ending: Ending): Promise<number> {
+  const { subject, done, jobId, outcome } = ending;
   if (outcome === 'detached') {
     io.stderr(`Stopped following job ${jobId}. It keeps running in ohr-core.`);
     io.stderr(`Follow it again with: ohr job show --follow ${jobId}`);
     return EXIT_FAILURE;
   }
   if (outcome === 'done') {
-    io.stdout(`${subject} created. Job ${jobId}.`);
+    io.stdout(`${subject} ${done}. Job ${jobId}.`);
     return EXIT_OK;
   }
   const { job } = await core.call('jobs.get', { id: jobId });
-  io.stderr(`${subject} was not created: ${job.error ?? job.status}. Job ${jobId}.`);
+  io.stderr(`${subject} was not ${done}: ${job.error ?? job.status}. Job ${jobId}.`);
   io.stderr(`Nothing was undone. Fix the cause, then run: ohr job retry ${jobId}`);
   return EXIT_FAILURE;
 }
@@ -69,6 +71,8 @@ async function report(io: Io, core: Core, { subject, jobId, outcome }: Ending): 
 export interface FollowedJob {
   /** What the job makes, for the final message, such as "Pool p1" or "Volume data". */
   readonly subject: string;
+  /** What the job does to it, for the final message. The default is "created". */
+  readonly done?: string;
   /** Starts the job, or picks up an existing one, and returns its record. */
   readonly start: (core: Core) => Promise<JobRecord>;
 }
@@ -156,5 +160,10 @@ export async function followJob(io: Io, followed: FollowedJob): Promise<number> 
   const stopInterrupt = io.onInterrupt(() => finish('detached'));
   const result = await outcome;
   stopInterrupt();
-  return report(io, core, { subject: followed.subject, jobId: job.id, outcome: result });
+  return report(io, core, {
+    subject: followed.subject,
+    done: followed.done ?? 'created',
+    jobId: job.id,
+    outcome: result,
+  });
 }

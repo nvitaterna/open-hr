@@ -23,7 +23,7 @@ Usage: ${SHORT_NAME} [--socket <path>] <command> [options]
 Commands:
   status     Show drives, RAID arrays, and volume groups
   plan       Show how a new pool would be laid out
-  pool       Create a pool: ${SHORT_NAME} pool create
+  pool       Create or grow a pool: ${SHORT_NAME} pool create|add|expand
   volume     Create a volume in a pool: ${SHORT_NAME} volume create
   job        List, show, and retry jobs: ${SHORT_NAME} job list
   version    Print the version

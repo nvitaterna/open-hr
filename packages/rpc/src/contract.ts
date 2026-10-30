@@ -16,6 +16,8 @@ import {
 } from '@ohr/shared/jobs';
 import { poolCreateInputSchema } from '@ohr/shared/pool-create-input';
 import { poolCreateRequestSchema } from '@ohr/shared/pool-create-request';
+import { poolExpandInputSchema } from '@ohr/shared/pool-expand-input';
+import { poolExpandRequestSchema } from '@ohr/shared/pool-expand-request';
 import { driveViewSchema, poolViewSchema } from '@ohr/shared/pool-view';
 import { systemSnapshotSchema } from '@ohr/shared/system-snapshot';
 import { volumeCreateInputSchema } from '@ohr/shared/volume-create-input';
@@ -48,6 +50,11 @@ const jobSubmissionSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('volume-create'),
     input: volumeCreateInputSchema,
+    stateHash: stateHashSchema,
+  }),
+  z.strictObject({
+    kind: z.literal('pool-expand'),
+    input: poolExpandInputSchema,
     stateHash: stateHashSchema,
   }),
 ]);
@@ -113,6 +120,19 @@ export const methods = {
     params: poolCreateRequestSchema,
     result: z.strictObject({
       input: poolCreateInputSchema,
+      steps: z.array(stepPreviewSchema),
+      stateHash: stateHashSchema,
+    }),
+  },
+  /**
+   * Checks adding drives to a pool, or using space its drives already
+   * have, and plans it (decision 0011). Like pools.previewCreate, with the
+   * capacity before and after in the input.
+   */
+  'pools.previewExpand': {
+    params: poolExpandRequestSchema,
+    result: z.strictObject({
+      input: poolExpandInputSchema,
       steps: z.array(stepPreviewSchema),
       stateHash: stateHashSchema,
     }),

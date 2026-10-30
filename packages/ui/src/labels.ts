@@ -18,6 +18,7 @@ export const REDUNDANCY_LABELS: Record<'shr1' | 'shr2', string> = {
 export const JOB_KIND_LABELS: Record<JobKind, string> = {
   'pool-create': 'Create pool',
   'volume-create': 'Create volume',
+  'pool-expand': 'Grow pool',
 };
 
 /** A date and time in the browser's locale. */

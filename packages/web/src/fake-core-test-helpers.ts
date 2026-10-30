@@ -116,6 +116,8 @@ export function fakeHandlers(received: Received[]): Handlers {
           '/dev/sdb holds a filesystem. Choose wipe to erase it.',
         ]),
       ),
+    'pools.previewExpand': () =>
+      Promise.reject(new RpcError('rejected', 'The pool cannot grow.', ['Not in this test.'])),
     'volumes.previewCreate': (params) =>
       record('volumes.previewCreate', params, {
         input: VOLUME_INPUT,

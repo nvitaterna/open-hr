@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import type { CommandResult } from '@ohr/core/command-runner';
 import { type Daemon, startDaemon } from '@ohr/core/daemon/daemon';
 import { RpcClient } from '@ohr/rpc/client';
+import { encodeLabelDescriptor } from '@ohr/shared/label-descriptor';
 
 import type { Environment } from './io.ts';
 import { run } from './run.ts';
@@ -26,6 +27,7 @@ const GIB = 1_073_741_824;
 const FAKE_DISK_GIB = 4;
 const FAKE_DISK_BYTES = FAKE_DISK_GIB * GIB;
 const POOL_FREE_GIB = 8;
+const NEW_DISK_BYTES = 8_001_563_222_016;
 const POOL_FREE_BYTES = POOL_FREE_GIB * GIB;
 
 function emptyDisk(name: string, sizeBytes: number, serial: string): string {
@@ -75,7 +77,13 @@ function startCore(
       ),
     readFile: (path) => Promise.resolve(files.get(path) ?? null),
     labelIo: {
-      read: (path) => Promise.reject(new Error(`no label on ${path} in this test`)),
+      read: (path) => {
+        const label = options.labels?.get(path);
+        if (label === undefined) {
+          return Promise.reject(new Error(`no label on ${path} in this test`));
+        }
+        return Promise.resolve(label);
+      },
       write: () => Promise.reject(new Error('read-only')),
     },
     log: () => undefined,
@@ -91,6 +99,8 @@ export interface CliOptions {
   readonly coreStopped?: boolean;
   /** Job database, to share jobs between runs. Default: a fresh one in memory. */
   readonly database?: string;
+  /** Label partition contents by path. Default: none can be read. */
+  readonly labels?: ReadonlyMap<string, Uint8Array>;
 }
 
 export interface CliResult {
@@ -114,6 +124,34 @@ export function exampleMachine(): Map<string, CommandResult> {
     ['smartctl /dev/sdb', ok(fixture('example-shr1/smartctl-sdb-failing.json'))],
     ['smartctl /dev/sdc', ok(fixture('example-shr1/smartctl-sda.json'))],
   ]);
+}
+
+/** The worked example plus an empty 8 TB drive, sdd. */
+export function exampleMachineWithNewDrive(): Map<string, CommandResult> {
+  const answers = exampleMachine();
+  const lsblk = JSON.parse(fixture('example-shr1/lsblk.json')) as { blockdevices: unknown[] };
+  lsblk.blockdevices.push({
+    ...(JSON.parse(emptyDisk('sdd', NEW_DISK_BYTES, 'D1')) as object),
+    start: null,
+  });
+  answers.set('lsblk', ok(JSON.stringify(lsblk)));
+  return answers;
+}
+
+/** Labels for the worked example's pool p1, on sda1, sdb1, and sdc1. */
+export function exampleLabels(): ReadonlyMap<string, Uint8Array> {
+  return new Map(
+    ['sda', 'sdb', 'sdc'].map((name, index) => [
+      `/dev/${name}1`,
+      encodeLabelDescriptor({
+        poolId: 'p1',
+        poolUuid: '6f1c2a4e-8b3d-4c5e-9a7f-1b2c3d4e5f60',
+        driveUuid: `00000000-0000-4000-8000-00000000000${index + 1}`,
+        redundancy: 'shr1',
+        writtenAt: '2026-10-29T12:00:00.000Z',
+      }),
+    ]),
+  );
 }
 
 export function exampleFiles(): ReadonlyMap<string, string> {
