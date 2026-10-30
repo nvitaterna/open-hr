@@ -113,14 +113,20 @@ work already done.
   `mdadm.conf` file; and, if the input names a volume, grow it (below).
 - **`drive-replace`** replaces one member drive with one new drive, which
   must take at least every tier the old one had. Two forms, chosen by the
-  planner from live state:
-  - _Old drive still present and healthy:_ partition and label the new
-    drive, then for each tier add the new partition as a spare and run
-    `mdadm --replace <old> --with <new>`, waiting each time. The array keeps
-    its redundancy throughout.
-  - _Old drive failed or missing:_ remove any failed member with
-    `mdadm --remove`, partition and label the new drive, `mdadm --add` its
-    partitions, and wait for each rebuild.
+  planner from live state for each tier on its own, since a drive can fail
+  in one tier and still work in another:
+  - _Old member still active in the tier:_ partition and label the new
+    drive, then add the new partition as a spare and run
+    `mdadm --replace <old> --with <new>`, wait until md has swapped them,
+    and remove the old member, which md leaves marked faulty. The array
+    keeps its redundancy throughout.
+  - _Old member failed, or the drive missing:_ remove the failed member
+    with `mdadm --remove` (every failed member when the drive is gone),
+    `mdadm --add` the new partition, and wait for the rebuild.
+
+  Members are read from `/proc/mdstat` and md sysfs: `mdadm --detail
+  --export` reports a failed member under its old slot number and a
+  replaced one as a spare.
 
   The job does not erase the old drive. Its partitions and label stay as
   they are, the pool page shows it as "no longer in the pool", and the user
