@@ -157,7 +157,11 @@ work already done.
   the step that issued `mdadm --grow` sees the new member count and is
   skipped, and the wait step attaches to the reshape the kernel kept running.
   The same holds after a reboot, because md records the reshape position in
-  the superblocks and continues after assembly.
+  the superblocks and continues after assembly. An array assembled at boot
+  can come up auto-read-only, and then the reshape waits for the first
+  write, which never comes if no volume on the pool is mounted. The wait
+  step therefore sets an auto-read-only array read-write
+  (`mdadm --readwrite`) before it starts reading.
 
 ### Progress
 

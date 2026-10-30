@@ -1,7 +1,8 @@
 /**
  * Changes a running tier array with mdadm (decision 0011): adds members,
  * grows the member count, converts a two-member RAID1 to RAID5 and sets its
- * chunk, swaps a member for a new one, and fails or removes a member. Each
+ * chunk, swaps a member for a new one, fails or removes a member, and takes
+ * an array out of auto-read-only. Each
  * call returns as soon as mdadm has handed the work to the kernel. A reshape,
  * recovery, or resync then runs in the background, and the caller waits for
  * it with waitForSync. The caller checks the array is in a state where the
@@ -142,6 +143,16 @@ export function mdadmRemoveArgs(array: string, member: MemberRef): string[] {
   return ['--manage', array, '--remove', member];
 }
 
+/**
+ * Takes an auto-read-only array to read-write. md starts an array that way
+ * after assembly, for example after a reboot, and a reshape that was under
+ * way does not continue until the array is written to.
+ */
+export function mdadmReadWriteArgs(array: string): string[] {
+  assertDevicePath(array, 'The array');
+  return ['--readwrite', array];
+}
+
 export function addMembers(
   run: CommandRunner,
   request: { readonly array: string; readonly members: readonly string[] },
@@ -183,4 +194,8 @@ export function removeMember(
   request: { readonly array: string; readonly member: MemberRef },
 ): Promise<MdDetail> {
   return mdadm(run, request.array, mdadmRemoveArgs(request.array, request.member));
+}
+
+export function setReadWrite(run: CommandRunner, array: string): Promise<MdDetail> {
+  return mdadm(run, array, mdadmReadWriteArgs(array));
 }
