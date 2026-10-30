@@ -1,7 +1,9 @@
 /**
- * Writes a planned partition table to one drive with sgdisk (decision 0004).
- * Destructive: it replaces the drive's partition table. The caller checks the
- * drive is safe to use first; this only carries out the plan.
+ * Writes a planned partition table to one drive with sgdisk (decision 0004),
+ * or adds new tier partitions to a drive already in the pool (decision 0011).
+ * partitionDrive is destructive: it replaces the drive's partition table.
+ * addPartitions only writes into free space. The caller checks the drive is
+ * safe to use first; this only carries out the plan.
  */
 
 import { labelPartitionLabel, tierPartitionLabel } from '@ohr/shared/naming';
@@ -37,6 +39,24 @@ function partitionName(poolId: string, partition: PlannedPartition): string {
   return tierPartitionLabel(poolId, partition.tier);
 }
 
+function newPartitionArgs(request: PartitionDriveRequest): string[] {
+  const args: string[] = [];
+  for (const partition of request.partitions) {
+    const { number } = partition;
+    const start = mebibytes(partition.startBytes, `Partition ${number} start`);
+    const size = mebibytes(partition.sizeBytes, `Partition ${number} size`);
+    args.push(
+      '--new',
+      `${number}:${start}M:+${size}M`,
+      '--typecode',
+      `${number}:${typeCode(partition)}`,
+      '--change-name',
+      `${number}:${partitionName(request.poolId, partition)}`,
+    );
+  }
+  return args;
+}
+
 export interface PartitionDriveRequest {
   /** Kernel device path, such as /dev/sda or /dev/nvme0n1. Not a /dev/disk/by-* link. */
   readonly devicePath: string;
@@ -54,22 +74,40 @@ export function partitionPath(devicePath: string, number: number): string {
 
 /** sgdisk arguments that replace the drive's table with exactly the planned partitions. */
 export function sgdiskArgs(request: PartitionDriveRequest): string[] {
-  const args = ['--clear'];
-  for (const partition of request.partitions) {
-    const { number } = partition;
-    const start = mebibytes(partition.startBytes, `Partition ${number} start`);
-    const size = mebibytes(partition.sizeBytes, `Partition ${number} size`);
-    args.push(
-      '--new',
-      `${number}:${start}M:+${size}M`,
-      '--typecode',
-      `${number}:${typeCode(partition)}`,
-      '--change-name',
-      `${number}:${partitionName(request.poolId, partition)}`,
-    );
+  return ['--clear', ...newPartitionArgs(request), request.devicePath];
+}
+
+/**
+ * sgdisk arguments that add the planned partitions to the drive's table and
+ * leave its other partitions alone. sgdisk refuses a partition that overlaps
+ * one already there, so a wrong plan cannot touch existing data.
+ */
+export function sgdiskAddArgs(request: PartitionDriveRequest): string[] {
+  if (request.partitions.length === 0) {
+    throw new RangeError('Name at least one partition to add');
   }
-  args.push(request.devicePath);
-  return args;
+  for (const partition of request.partitions) {
+    if (partition.role !== 'tier') {
+      throw new RangeError(
+        `Only tier partitions are added to a drive in use, not ${partition.role}`,
+      );
+    }
+  }
+  return [...newPartitionArgs(request), request.devicePath];
+}
+
+/**
+ * partx arguments that tell the kernel about new partitions. The kernel
+ * cannot re-read the whole table of a drive whose other partitions are in
+ * use, so only the new numbers are added. New tier partitions always number
+ * above the drive's existing ones, so the range holds no partition the
+ * kernel already knows; if it did, partx would fail rather than skip it.
+ */
+export function partxAddArgs(devicePath: string, numbers: readonly number[]): string[] {
+  if (numbers.length === 0) {
+    throw new RangeError('Name at least one partition to add');
+  }
+  return ['--add', '--nr', `${Math.min(...numbers)}:${Math.max(...numbers)}`, devicePath];
 }
 
 /**
@@ -83,6 +121,26 @@ export async function partitionDrive(
 ): Promise<string[]> {
   const args = sgdiskArgs(request);
   await runChecked(run, 'sgdisk', args, { timeoutMs: SGDISK_TIMEOUT_MS });
+  await runChecked(run, 'udevadm', ['settle']);
+  const paths = request.partitions.map((partition) =>
+    partitionPath(request.devicePath, partition.number),
+  );
+  await Promise.all(paths.map((path) => runChecked(run, 'wipefs', ['--all', '--quiet', path])));
+  return paths;
+}
+
+/**
+ * Adds partitions to a drive whose other partitions are in use, tells the
+ * kernel about them with partx, waits for udev, and wipes any old signatures
+ * inside them. Returns the new partition paths in plan order.
+ */
+export async function addPartitions(
+  run: CommandRunner,
+  request: PartitionDriveRequest,
+): Promise<string[]> {
+  await runChecked(run, 'sgdisk', sgdiskAddArgs(request), { timeoutMs: SGDISK_TIMEOUT_MS });
+  const numbers = request.partitions.map((partition) => partition.number);
+  await runChecked(run, 'partx', partxAddArgs(request.devicePath, numbers));
   await runChecked(run, 'udevadm', ['settle']);
   const paths = request.partitions.map((partition) =>
     partitionPath(request.devicePath, partition.number),

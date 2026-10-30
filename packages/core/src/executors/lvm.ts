@@ -1,9 +1,10 @@
 /**
  * Puts a pool's arrays under LVM (plan section 4.2): one physical volume per
  * tier array, one volume group per pool, and one logical volume per user
- * volume. Destructive: each step writes LVM metadata over the device it is
- * given. The caller checks the devices are free first; this only carries out
- * the plan.
+ * volume. Creating is destructive: each step writes LVM metadata over the
+ * device it is given. Growing (decision 0011) keeps every extent where it is
+ * and only adds space. The caller checks the devices first; this only
+ * carries out the plan.
  */
 
 import { LVM_EXTENT_BYTES } from '@ohr/shared/constants';
@@ -54,6 +55,16 @@ export interface CreateVolumeGroupRequest {
   readonly physicalVolumes: readonly string[];
 }
 
+export interface ExtendLogicalVolumeRequest {
+  readonly poolId: string;
+  readonly name: string;
+  /**
+   * The size afterwards: all free space, or an exact size, so running the
+   * same request twice does not grow the volume twice.
+   */
+  readonly size: VolumeSize;
+}
+
 export interface CreateLogicalVolumeRequest {
   readonly poolId: string;
   readonly name: string;
@@ -100,6 +111,27 @@ export function lvcreateArgs(request: CreateLogicalVolumeRequest): string[] {
   ];
 }
 
+/** vgextend arguments: the pool's group gains the new arrays. */
+export function vgextendArgs(request: CreateVolumeGroupRequest): string[] {
+  if (request.physicalVolumes.length === 0) {
+    throw new RangeError('Name at least one physical volume to add');
+  }
+  return [volumeGroupName(request.poolId), ...request.physicalVolumes];
+}
+
+/**
+ * lvextend arguments. The filesystem is grown separately, so a failure
+ * there leaves a larger volume and a clear error, never a half-grown
+ * filesystem hidden inside LVM.
+ */
+export function lvextendArgs(request: ExtendLogicalVolumeRequest): string[] {
+  let size = sizeArgs(request.size);
+  if (request.size.kind === 'all-free') {
+    size = ['--extents', '+100%FREE'];
+  }
+  return [...size, logicalVolumePath(request.poolId, request.name)];
+}
+
 /**
  * Wipes old signatures from the device, then makes it a physical volume.
  * pvcreate would otherwise ask on stdin before wiping, and abort.
@@ -131,6 +163,38 @@ export async function createLogicalVolume(
 ): Promise<LogicalVolume> {
   await runChecked(run, 'lvcreate', lvcreateArgs(request), { timeoutMs: LVM_TIMEOUT_MS });
   await runChecked(run, 'udevadm', ['settle']);
+  const target = `${volumeGroupName(request.poolId)}/${request.name}`;
+  const report = await runChecked(run, 'lvs', [...lvmReportArgs(LV_FIELDS), target]);
+  return singleRow(parseLvs(report), 'logical volume');
+}
+
+/** Grows the physical volume to its array's new size. Its first extent stays where it is. */
+export async function resizePhysicalVolume(
+  run: CommandRunner,
+  device: string,
+): Promise<PhysicalVolume> {
+  await runChecked(run, 'pvresize', [device], { timeoutMs: LVM_TIMEOUT_MS });
+  const report = await runChecked(run, 'pvs', [...lvmReportArgs(PV_FIELDS), device]);
+  return singleRow(parsePvs(report), 'physical volume');
+}
+
+/** Adds physical volumes to the pool's volume group and reports the group. */
+export async function extendVolumeGroup(
+  run: CommandRunner,
+  request: CreateVolumeGroupRequest,
+): Promise<VolumeGroup> {
+  await runChecked(run, 'vgextend', vgextendArgs(request), { timeoutMs: LVM_TIMEOUT_MS });
+  const name = volumeGroupName(request.poolId);
+  const report = await runChecked(run, 'vgs', [...lvmReportArgs(VG_FIELDS), name]);
+  return singleRow(parseVgs(report), 'volume group');
+}
+
+/** Grows the volume and reports what LVM sees. The filesystem on it is not touched. */
+export async function extendLogicalVolume(
+  run: CommandRunner,
+  request: ExtendLogicalVolumeRequest,
+): Promise<LogicalVolume> {
+  await runChecked(run, 'lvextend', lvextendArgs(request), { timeoutMs: LVM_TIMEOUT_MS });
   const target = `${volumeGroupName(request.poolId)}/${request.name}`;
   const report = await runChecked(run, 'lvs', [...lvmReportArgs(LV_FIELDS), target]);
   return singleRow(parseLvs(report), 'logical volume');

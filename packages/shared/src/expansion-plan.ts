@@ -40,7 +40,12 @@ export type ExpansionAction =
       readonly drive: string;
       readonly partitions: readonly PlannedPartition[];
     }
-  /** A two-member RAID1 tier becomes a two-member RAID5 with the 512 KiB chunk. */
+  /**
+   * A two-member RAID1 tier becomes a two-member RAID5. It keeps mdadm's
+   * 64 KiB chunk until the grow-tier that follows has given it three
+   * members; only then is the 512 KiB chunk set. Changing the chunk on two
+   * members under writes deadlocks the kernel (decision 0011).
+   */
   | { readonly kind: 'convert-to-raid5'; readonly tier: number }
   /** Add these drives' partitions to the tier's array and reshape it to `members`. */
   | {
