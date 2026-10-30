@@ -51,6 +51,19 @@ jobs:
           node packages/cli/dist/bin.js --socket "$socket" job list
           kill "$core"
 
+  lsblk:
+    name: lsblk columns on Debian ${{ matrix.debian }}
+    runs-on: ubuntu-latest
+    # Core's one fatal command must work with each supported release's util-linux (decision 0009).
+    container: debian:${{ matrix.debian }}
+    strategy:
+      matrix:
+        debian: ["12", "13"]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run lsblk with the columns core asks for
+        run: scripts/check-lsblk-columns.sh
+
   integration:
     name: Integration tests on loop devices
     runs-on: ubuntu-latest

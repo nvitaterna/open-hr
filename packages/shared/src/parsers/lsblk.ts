@@ -1,6 +1,7 @@
 /**
- * Parser for `lsblk --json --bytes --output <LSBLK_COLUMNS>`. Requires
- * util-linux 2.37 or newer for the MOUNTPOINTS column.
+ * Parser for `lsblk --json --bytes --output <LSBLK_COLUMNS>`. Works with
+ * util-linux 2.38.1, Debian 12's version, and newer. The PARTN column only
+ * arrived in 2.39, so the partition number comes from the device name.
  */
 
 import { z } from 'zod';
@@ -8,6 +9,8 @@ import { z } from 'zod';
 import { flagSchema, integerSchema, parseJsonText, textSchema, validate } from './parse-error.ts';
 
 const SOURCE = 'lsblk output';
+/** What follows the disk's name in a partition's: 2 in sda2, p2 in nvme0n1p2 or loop0p2. */
+const PARTITION_SUFFIX = /^p?(?<number>[1-9]\d*)$/u;
 
 const nodeSchema = z.object({
   name: z.string(),
@@ -43,6 +46,24 @@ function startBytes(sectors: number | null | undefined): number | null {
   return sectors * SECTOR_BYTES;
 }
 
+/**
+ * The kernel names a partition after its disk plus its number, with a `p`
+ * between them when the disk's name ends in a digit.
+ */
+function partitionNumber(node: z.infer<typeof nodeSchema>): number | null {
+  if (node.partn !== null && node.partn !== undefined) {
+    return node.partn;
+  }
+  if (node.type !== 'part' || node.pkname === null || !node.name.startsWith(node.pkname)) {
+    return null;
+  }
+  const digits = PARTITION_SUFFIX.exec(node.name.slice(node.pkname.length))?.groups?.number;
+  if (digits === undefined) {
+    return null;
+  }
+  return Number(digits);
+}
+
 const rootSchema = z.object({ blockdevices: z.array(z.unknown()) });
 
 function toBlockDevice(raw: unknown): BlockDevice {
@@ -65,7 +86,7 @@ function toBlockDevice(raw: unknown): BlockDevice {
     partUuid: node.partuuid,
     partLabel: node.partlabel,
     partType: node.parttype,
-    partNumber: node.partn ?? null,
+    partNumber: partitionNumber(node),
     startBytes: startBytes(node.start),
     mountpoints: (node.mountpoints ?? []).filter((point): point is string => point !== null),
     children: (node.children ?? []).map(toBlockDevice),
@@ -91,7 +112,6 @@ export const LSBLK_COLUMNS = [
   'PARTUUID',
   'PARTLABEL',
   'PARTTYPE',
-  'PARTN',
   'START',
   'MOUNTPOINTS',
 ] as const;
